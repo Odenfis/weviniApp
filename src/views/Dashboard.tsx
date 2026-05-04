@@ -46,7 +46,7 @@ export default function Dashboard() {
       <div className="flex justify-between items-end pb-8 border-b border-text-main/10">
         <div>
           <span className="text-[10px] tracking-[0.4em] font-bold uppercase mb-2 block opacity-50">Resumen operativo — Abril 2026</span>
-           <h1 className="text-6xl font-black text-text-main leading-tight tracking-tighter">Resumen General</h1>
+           <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black text-text-main leading-tight tracking-tighter">Resumen General</h1>
         </div>
         <button className="flex items-center gap-4 px-6 py-3 border border-text-main text-text-main rounded-full text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-primary hover:text-bg-main transition-all">
           <Download className="w-3 h-3" />

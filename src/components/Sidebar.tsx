@@ -70,7 +70,7 @@ export default function Sidebar({ currentView, setView, onLogout }: SidebarProps
               "w-4 h-4 transition-transform group-hover:scale-110",
               currentView === item.id ? "opacity-100" : "opacity-40 group-hover:opacity-100"
             )} />
-            <span className="text-xs font-bold uppercase tracking-widest">{item.label}</span>
+            <span className="text-xs font-bold uppercase tracking-widest whitespace-nowrap">{item.label}</span>
 
             {currentView === item.id && (
               <motion.div

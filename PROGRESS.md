@@ -127,8 +127,31 @@ This file serves as the official record of the project's evolution, technical de
     - Developed `update.bat` for one-click updates (git pull $\rightarrow$ docker rebuild).
     - Configured `host.docker.internal` for seamless container-to-host database communication.
 
+### Phase 14: UI Responsiveness & Layout Fixes
+- **Responsive Typography:** Implemented a gradual scaling system for page headers (`text-3xl` to `text-6xl`) to prevent text wrapping on laptop screens (16" and smaller).
+- **Sidebar Layout Optimization:** Added `whitespace-nowrap` to navigation labels in the Sidebar to ensure menu items always remain on a single line, maintaining visual consistency across different viewport widths.
+
+### Phase 15: Advanced POS Stock Control & Visual Highlights
+- **Strict Stock Blocking:** Implemented total blocking of sales in the POS when the `stock_actual` in `dim_saldos` is insufficient, preventing negative inventory.
+- **Dynamic Unit Conversion:** Developed a robust validation system (`isStockInsufficient`) that handles different inventory units (Planchas vs Unidades) by converting everything to a common base for accurate comparison.
+- **Real-time POS Feedback:** 
+    - Integrated high-visibility alerts in `CartItem` using red colors and pulse animations when stock is low.
+    - Implemented a preventive lock on the "Realizar Pago" button when any item exceeds available stock.
+### Phase 15: Advanced POS Stock Control & Visual Highlights
+- **Strict Stock Blocking:** Implemented total blocking of sales in the POS when the `stock_actual` in `dim_saldos` is insufficient, preventing negative inventory.
+- **Dynamic Unit Conversion:** Developed a robust validation system (`isStockInsufficient`) that handles different inventory units (Planchas vs Unidades) by converting everything to a common base for accurate comparison.
+- **Real-time POS Feedback:** 
+    - Integrated high-visibility alerts in `CartItem` using red colors and pulse animations when stock is low.
+    - Implemented a preventive lock on the "Realizar Pago" button when any item exceeds available stock.
+- **Inventory Data Highlighting:** Enhanced the Inventory view by highlighting the "Unidad" and "Stock Actual" columns in orange (`text-orange-600`) to improve data scanning and contrast.
+- **Direct Stock Adjustment:** Implemented a relative stock adjustment system in the Inventory view. Users can now increase or decrease `stock_actual` using a dedicated modal that sends a positive or negative delta to the `usp_Saldos_UpdateStock` stored procedure.
 
 ## 📅 Next Steps (Roadmap)
+- [ ] Implement Product Categories and Lines management.
+- [x] Implement Stock management (Add/Subtract movements).
+- [ ] Build the Dashboard with key metrics.
+- [ ] Implement Role-Based Access Control (RBAC) for 'Administrador' vs 'Operador'.
+
 - [ ] Implement Product Categories and Lines management.
 - [ ] Implement Stock management (Add/Subtract movements).
 - [ ] Build the Dashboard with key metrics.

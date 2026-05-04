@@ -141,7 +141,7 @@ export default function Products() {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-8 border-b border-text-main/10">
         <div>
           <span className="text-xs tracking-[0.3em] font-bold uppercase mb-2 block opacity-50">Product Management</span>
-           <h1 className="text-6xl font-black text-text-main leading-tight tracking-tighter">Maestro de Productos.</h1>
+           <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black text-text-main leading-tight tracking-tighter">Maestro de Productos.</h1>
         </div>
         <div className="flex gap-4">
           <button

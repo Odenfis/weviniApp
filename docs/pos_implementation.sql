@@ -106,3 +106,19 @@ BEGIN
     SELECT id_almacen, nombre FROM [dbo].[dim_almacenes] WHERE activo = 1;
 END
 GO
+
+-- 4. Manual Stock Adjustment (Incremental)
+-- Used for adding or subtracting stock from a specific record
+CREATE OR ALTER PROCEDURE [dbo].[usp_Saldos_UpdateStock]
+    @id INT,
+    @ajuste_stock DECIMAL(12, 4)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE [dbo].[dim_saldos]
+    SET stock_actual = stock_actual + @ajuste_stock,
+        ultima_actualizacion = GETDATE()
+    WHERE id_saldo = @id;
+END
+GO
+

@@ -31,6 +31,21 @@ BEGIN
 END;
 GO
 
+-- Descripción: Actualizar stock actual de un saldo específico (Suma/Resta)
+CREATE PROCEDURE usp_Saldos_UpdateStock
+    @id INT,
+    @ajuste_stock DECIMAL(12, 4)
+AS
+BEGIN
+    UPDATE dim_saldos 
+    SET stock_actual = stock_actual + @ajuste_stock,
+        ultima_actualizacion = GETDATE()
+    WHERE id_saldo = @id;
+END;
+GO
+
+
+
 -- -----------------------------------------------------------------------------------
 -- SECCIÓN: CLIENTES
 -- -----------------------------------------------------------------------------------

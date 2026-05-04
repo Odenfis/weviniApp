@@ -126,6 +126,43 @@ export default function POS() {
     return item.selectedPrice * item.qty;
   };
 
+  const getBaseFactor = (priceMap: any, searchKey: string) => {
+    if (!priceMap) return 1;
+    if (priceMap[searchKey]) return priceMap[searchKey].base;
+    
+    const key = Object.keys(priceMap).find(k => k.toUpperCase().includes(searchKey.toUpperCase()));
+    return key ? priceMap[key].base : 1;
+  };
+
+  const calculateTotalRequestedInUnits = (item: any) => {
+    const pBase = getBaseFactor(item.priceMap, 'PLANCHA');
+    const uBase = getBaseFactor(item.priceMap, 'UNIDAD');
+    const gBase = item.priceMap?.[item.selectedPresentation]?.base || 1;
+
+    if (item.planchas > 0 || item.unidades > 0) {
+      return (item.planchas * pBase) + (item.unidades * uBase);
+    }
+    return item.qty * gBase;
+  };
+
+  const isStockInsufficient = (item: any, warehouse: any) => {
+    if (!warehouse) return false;
+    const saldo = saldos?.find((s: any) => s.id_producto === item.id_producto && s.id_almacen === warehouse.id_almacen);
+    if (!saldo) return true; // No saldo record means no stock
+
+    const requestedUnits = calculateTotalRequestedInUnits(item);
+    const stockActual = saldo.stock_actual || 0;
+    const stockUnit = saldo.Unidad || 'UNIDADES';
+
+    // Convert stock to units for a fair comparison
+    const pBase = getBaseFactor(item.priceMap, 'PLANCHA');
+    const stockInUnits = stockUnit.toUpperCase() === 'PLANCHAS' 
+      ? stockActual * pBase 
+      : stockActual;
+
+    return requestedUnits > stockInUnits;
+  };
+
   const subtotal = cart.reduce((acc, item) => acc + calculateItemTotal(item), 0);
   const igv = subtotal * 0.18;
   const total = subtotal + igv;
@@ -140,22 +177,14 @@ export default function POS() {
       // Stock check for confirmation
       let insufficientStock = false;
       cart.forEach(item => {
-        const stock = saldos?.find((s: any) => s.id_producto === item.id_producto && s.id_almacen === selectedWarehouse?.id_almacen)?.stock_actual || 0;
-        const pBase = item.priceMap?.['PLANCHA']?.base || 1;
-        const uBase = item.priceMap?.['UNIDAD']?.base || 1;
-        const gBase = item.priceMap?.[item.selectedPresentation]?.base || 1;
-
-        const totalRequested = (item.planchas * pBase) +
-          (item.unidades * uBase) +
-          ((item.planchas === 0 && item.unidades === 0) ? (item.qty * gBase) : 0);
-        if (totalRequested > stock) insufficientStock = true;
+        if (isStockInsufficient(item, selectedWarehouse)) {
+          insufficientStock = true;
+        }
       });
 
       if (insufficientStock) {
-        const confirmSale = window.confirm(
-          "⚠️ Advertencia de Inventario:\nAlgunos productos no tienen stock suficiente en el almacén seleccionado. Esta venta generará un saldo negativo en el inventario. ¿Desea continuar con la venta?"
-        );
-        if (!confirmSale) return;
+        alert("❌ ERROR: FALTA DE SALDOS\nAlgunos productos no tienen stock suficiente en el almacén seleccionado. La venta ha sido bloqueada.");
+        return;
       }
 
       const docRes = await fetch('/api/ventas/next-doc').then(res => res.json());
@@ -227,7 +256,7 @@ export default function POS() {
       });
 
       if (res.ok) {
-        alert('Sale completed successfully!');
+        alert('Venta realizada correctamente!');
         setCart([]);
         setSelectedCustomer(null);
         setSelectedWarehouse(null);
@@ -263,84 +292,84 @@ export default function POS() {
           <div className="absolute top-0 left-0 w-1 h-full bg-text-main opacity-10"></div>
 
           <div className="p-5 border-b border-text-main/10 space-y-3">
-               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-4xl font-black text-text-main">Ticket Activo</h3>
-               <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">{cart.length} Items</span>
-             </div>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-4xl font-black text-text-main">Ticket Activo</h3>
+              <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">{cart.length} Items</span>
+            </div>
 
 
             <div className="grid grid-cols-1 gap-3">
-               <div className="relative">
-                 <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Seleccionar Cliente</span>
-                 <select
-                   className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg appearance-none bg-transparent focus:outline-none focus:border-primary text-text-main"
-                   value={selectedCustomer?.id_cliente || ''}
-                   onChange={(e) => setSelectedCustomer(customers.find(c => c.id_cliente === parseInt(e.target.value)))}
-                 >
-                   <option value="">Seleccione Cliente...</option>
-                   {customers.map(c => (
-                     <option key={c.id_cliente} value={c.id_cliente}>{c.razon_social} ({c.codigo})</option>
-                   ))}
-                 </select>
-               </div>
+              <div className="relative">
+                <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Seleccionar Cliente</span>
+                <select
+                  className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg appearance-none bg-transparent focus:outline-none focus:border-primary text-text-main"
+                  value={selectedCustomer?.id_cliente || ''}
+                  onChange={(e) => setSelectedCustomer(customers.find(c => c.id_cliente === parseInt(e.target.value)))}
+                >
+                  <option value="">Seleccione Cliente...</option>
+                  {customers.map(c => (
+                    <option key={c.id_cliente} value={c.id_cliente}>{c.razon_social} ({c.codigo})</option>
+                  ))}
+                </select>
+              </div>
 
 
-               <div className="relative">
-                 <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Seleccione Almacén</span>
-                 <select
-                   className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg appearance-none bg-transparent focus:outline-none focus:border-primary text-text-main"
-                   value={selectedWarehouse?.id_almacen || ''}
-                   onChange={(e) => setSelectedWarehouse(warehouses.find(w => w.id_almacen === parseInt(e.target.value)))}
-                 >
-                   <option value="">Seleccione almacén...</option>
-                   {warehouses.map(w => (
-                     <option key={w.id_almacen} value={w.id_almacen}>{w.nombre}</option>
-                   ))}
-                 </select>
-               </div>
+              <div className="relative">
+                <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Seleccione Almacén</span>
+                <select
+                  className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg appearance-none bg-transparent focus:outline-none focus:border-primary text-text-main"
+                  value={selectedWarehouse?.id_almacen || ''}
+                  onChange={(e) => setSelectedWarehouse(warehouses.find(w => w.id_almacen === parseInt(e.target.value)))}
+                >
+                  <option value="">Seleccione almacén...</option>
+                  {warehouses.map(w => (
+                    <option key={w.id_almacen} value={w.id_almacen}>{w.nombre}</option>
+                  ))}
+                </select>
+              </div>
 
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-               <div className="relative">
-                 <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Tipo Documento</span>
-                 <select
-                   className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg appearance-none bg-transparent focus:outline-none focus:border-primary text-text-main"
-                   value={docType}
-                   onChange={(e) => setDocType(parseInt(e.target.value))}
-                 >
-                   <option value={1}>Boleta</option>
-                   <option value={2}>Factura</option>
-                 </select>
-               </div>
+              <div className="relative">
+                <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Tipo Documento</span>
+                <select
+                  className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg appearance-none bg-transparent focus:outline-none focus:border-primary text-text-main"
+                  value={docType}
+                  onChange={(e) => setDocType(parseInt(e.target.value))}
+                >
+                  <option value={1}>Boleta</option>
+                  <option value={2}>Factura</option>
+                </select>
+              </div>
 
-               <div className="relative">
-                 <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Tipo Pago</span>
-                 <select
-                   className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg appearance-none bg-transparent focus:outline-none focus:border-primary text-text-main"
-                   value={saleType}
-                   onChange={(e) => setSaleType(parseInt(e.target.value))}
-                 >
-                   <option value={1}>Contado</option>
-                   <option value={2}>Crédito</option>
-                 </select>
-               </div>
+              <div className="relative">
+                <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Tipo Pago</span>
+                <select
+                  className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg appearance-none bg-transparent focus:outline-none focus:border-primary text-text-main"
+                  value={saleType}
+                  onChange={(e) => setSaleType(parseInt(e.target.value))}
+                >
+                  <option value={1}>Contado</option>
+                  <option value={2}>Crédito</option>
+                </select>
+              </div>
 
             </div>
 
-             <div className="relative">
-               <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Observaciones</span>
-               <textarea
-                 className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg bg-transparent focus:outline-none focus:border-primary resize-none text-text-main"
-                 rows={2}
-                 value={observations}
-                 onChange={(e) => setObservations(e.target.value)}
-                 placeholder="Agregar observación..."
-               />
-             </div>
+            <div className="relative">
+              <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Observaciones</span>
+              <textarea
+                className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg bg-transparent focus:outline-none focus:border-primary resize-none text-text-main"
+                rows={2}
+                value={observations}
+                onChange={(e) => setObservations(e.target.value)}
+                placeholder="Agregar observación..."
+              />
+            </div>
           </div>
 
-           <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-6">
             <AnimatePresence initial={false}>
               {cart.map(item => (
                 <CartItem
@@ -351,13 +380,14 @@ export default function POS() {
                   onUpdateCombinedQty={updateCombinedQty}
                   saldos={saldos}
                   selectedWarehouse={selectedWarehouse}
+                  isStockInsufficient={isStockInsufficient}
                 />
               ))}
             </AnimatePresence>
 
             {cart.length === 0 && (
               <div className="pt-12 flex flex-col items-center gap-4 opacity-20">
-                 <div className="w-12 h-12 rounded-full border border-text-main flex items-center justify-center font-bold">
+                <div className="w-12 h-12 rounded-full border border-text-main flex items-center justify-center font-bold">
                   <ShoppingBag className="w-5 h-5" />
                 </div>
                 <p className="text-[10px] font-bold uppercase tracking-widest">Ticket Vacío</p>
@@ -369,31 +399,26 @@ export default function POS() {
             <div className="space-y-3">
               <div className="flex justify-between items-baseline">
                 <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Subtotal</span>
-                 <span className="text-xl font-bold">S/ {subtotal.toFixed(2)}</span>
+                <span className="text-xl font-bold">S/ {subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-baseline">
                 <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Tax (IGV 18%)</span>
-                 <span className="text-xl font-bold">S/ {igv.toFixed(2)}</span>
+                <span className="text-xl font-bold">S/ {igv.toFixed(2)}</span>
               </div>
               <div className="pt-3 border-t border-text-main flex justify-between items-baseline">
                 <span className="text-[11px] font-bold uppercase tracking-[0.3em]">Total</span>
-                 <span className="text-4xl font-black text-text-main tracking-tighter">S/ {total.toFixed(2)}</span>
+                <span className="text-4xl font-black text-text-main tracking-tighter">S/ {total.toFixed(2)}</span>
               </div>
             </div>
 
             <button
               onClick={finalizeSale}
               className="w-full py-5 bg-primary text-bg-main rounded-full text-[10px] font-black uppercase tracking-[0.4em] hover:opacity-90 transition-all shadow-2xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={
-                cart.length === 0 ||
-                !selectedWarehouse ||
-                cart.some(item => {
-                  const isHuevoPardo = item.name?.toUpperCase().includes('PARDOS') || item.name?.toUpperCase().includes('PARDO');
-                  const activeValue = isHuevoPardo ? item.planchas : item.unidades;
-                  const genericQty = (item.planchas === 0 && item.unidades === 0) ? item.qty : 0;
-                  return (activeValue === 0 && genericQty <= 0);
-                })
-              }
+               disabled={
+                 cart.length === 0 ||
+                 !selectedWarehouse ||
+                 cart.some(item => isStockInsufficient(item, selectedWarehouse))
+               }
             >
               REALIZAR PAGO <CreditCard className="w-3 h-3" />
             </button>
@@ -405,7 +430,7 @@ export default function POS() {
           <div className="flex justify-between items-end pb-8 border-b border-text-main/10">
             <div>
               <span className="text-[10px] tracking-[0.4em] font-bold uppercase mb-2 block opacity-50">Terminal de Pago</span>
-               <h1 className="text-6xl font-black text-text-main leading-tight tracking-tighter">Pago Digital.</h1>
+              <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black text-text-main leading-tight tracking-tighter">Pago Digital.</h1>
             </div>
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 opacity-40" />
@@ -439,7 +464,7 @@ export default function POS() {
             >
               <div className="p-8 border-b border-text-main/10 flex justify-between items-center">
                 <div>
-                   <h3 className="text-2xl font-bold text-text-main">{pendingProduct?.nombre}</h3>
+                  <h3 className="text-2xl font-bold text-text-main">{pendingProduct?.nombre}</h3>
                   <p className="text-[10px] font-bold uppercase tracking-widest opacity-40">Seleccione Presentación</p>
                 </div>
                 <button onClick={() => setShowPriceModal(false)} className="p-2 hover:bg-text-main/5 rounded-full transition-colors">
@@ -458,7 +483,7 @@ export default function POS() {
                       <span className="text-[10px] opacity-40">Base: {p.cantidad_base} units</span>
                     </div>
                     <div className="text-right">
-                       <span className="text-lg font-bold group-hover:text-primary transition-colors">S/ {p.precio_venta.toFixed(2)}</span>
+                      <span className="text-lg font-bold group-hover:text-primary transition-colors">S/ {p.precio_venta.toFixed(2)}</span>
                     </div>
                   </button>
                 ))}
@@ -478,58 +503,55 @@ function ProductCard({ product, onAdd }: any) {
         <Package className="w-6 h-6 text-text-main/10 group-hover:text-text-main/30 transition-all" />
       </div>
       <div className="flex-1">
-         <h4 className="text-lg font-bold text-text-main mb-1">{product.nombre}.</h4>
+        <h4 className="text-lg font-bold text-text-main mb-1">{product.nombre}.</h4>
         <div className="flex items-baseline gap-4">
           <span className="text-[9px] font-bold uppercase tracking-widest opacity-30">{product.codigo}</span>
-           <span className="text-xs font-medium opacity-80">Múltiples precios</span>
+          <span className="text-xs font-medium opacity-80">Múltiples precios</span>
         </div>
       </div>
-       <button
-         onClick={onAdd}
-         className="border border-orange-200 bg-orange-50 text-orange-600 rounded-full px-6 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-orange-600 hover:text-white transition-all"
-       >
-         Seleccionar Presentación
-       </button>
+      <button
+        onClick={onAdd}
+        className="border border-orange-200 bg-orange-50 text-orange-600 rounded-full px-6 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-orange-600 hover:text-white transition-all"
+      >
+        Seleccionar Presentación
+      </button>
     </div>
   );
 }
 
-function CartItem({ item, onRemove, onUpdateQty, onUpdateCombinedQty, saldos, selectedWarehouse }: any) {
+function CartItem({ item, onRemove, onUpdateQty, onUpdateCombinedQty, saldos, selectedWarehouse, isStockInsufficient }: any) {
   const itemTotal = (item: any) => {
     return item.selectedPrice * item.qty;
   };
+  
+  const insufficient = isStockInsufficient(item, selectedWarehouse);
+  const saldo = saldos?.find((s: any) => s.id_producto === item.id_producto && s.id_almacen === selectedWarehouse?.id_almacen);
+  const stock = saldo?.stock_actual || 0;
+  const stockUnit = saldo?.Unidad || 'UNIDADES';
 
-  const productStock = saldos?.find((s: any) => s.id_producto === item.id_producto && s.id_almacen === selectedWarehouse?.id_almacen)?.stock_actual || 0;
   const isHuevoPardo = item.name?.toUpperCase().includes('PARDOS') || item.name?.toUpperCase().includes('PARDO');
   const onlyPlanchas = isHuevoPardo;
   const onlyUnidades = !isHuevoPardo;
 
   return (
-     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="group border-b border-text-main/10 pb-6 mb-6 last:border-b-0 last:mb-0">
-       <div className="flex justify-between items-start mb-2">
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="group border-b border-text-main/10 pb-6 mb-6 last:border-b-0 last:mb-0">
+      <div className="flex justify-between items-start mb-2">
         <div>
           <h5 className="text-xl font-bold uppercase tracking-widest text-text-main">{item.name}</h5>
-             <p className="text-sm font-medium opacity-70">
+          <p className="text-sm font-medium opacity-70">
             {item.planchas > 0 || item.unidades > 0
               ? 'Combined Quantities'
               : `${item.selectedPresentation} • S/ ${item.selectedPrice.toFixed(2)}`}
           </p>
         </div>
         <div className="flex items-center gap-4">
-          {(() => {
-            const stock = saldos?.find((s: any) => s.id_producto === item.id_producto && s.id_almacen === selectedWarehouse?.id_almacen)?.cantidad || 0;
-            const pBase = item.priceMap?.['PLANCHA']?.base || 1;
-            const uBase = item.priceMap?.['UNIDAD']?.base || 1;
-            const gBase = item.priceMap?.[item.selectedPresentation]?.base || 1;
-            const totalRequested = (item.planchas * pBase) +
-              (item.unidades * uBase) +
-              ((item.planchas === 0 && item.unidades === 0) ? (item.qty * gBase) : 0);
-            return (
-              <span className={cn("text-[10px] font-bold uppercase", totalRequested > stock ? "text-red-500" : "opacity-30")}>
-                Stock: {stock}
-              </span>
-            );
-          })()}
+           {(() => {
+             return (
+               <span className={cn("text-[10px] font-bold uppercase", insufficient ? "text-error animate-pulse" : "opacity-30")}>
+                 {insufficient ? `❌ STOCK INSUFICIENTE (${stock} ${stockUnit})` : `Stock: ${stock} ${stockUnit}`}
+               </span>
+             );
+           })()}
           <button
             onClick={() => onRemove(item.id_producto, item.selectedPresentation)}
             className="text-text-main/20 hover:text-text-main transition-colors"
@@ -582,7 +604,7 @@ function CartItem({ item, onRemove, onUpdateQty, onUpdateCombinedQty, saldos, se
             />
           </div>
         </div>
-         <span className="text-xl font-bold">S/ {itemTotal(item).toFixed(2)}</span>
+        <span className="text-xl font-bold">S/ {itemTotal(item).toFixed(2)}</span>
       </div>
     </motion.div>
   );

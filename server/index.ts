@@ -62,6 +62,22 @@ app.get('/api/saldos', async (req, res) => {
     }
 });
 
+app.put('/api/saldos/:id', async (req, res) => {
+    const { id } = req.params;
+    const { ajuste_stock } = req.body;
+    try {
+        const pool = await poolPromise;
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('ajuste_stock', sql.Decimal(12, 4), ajuste_stock)
+            .execute('usp_Saldos_UpdateStock');
+        res.json({ message: 'Stock ajustado exitosamente' });
+    } catch (err) {
+        res.status(500).json({ message: 'Error al ajustar el stock', detail: err.message });
+    }
+});
+
+
 // --- CLIENTES ---
 
 app.get('/api/clientes', async (req, res) => {
