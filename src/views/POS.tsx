@@ -215,12 +215,18 @@ export default function POS() {
         }
       });
 
-      if (insufficientStock) {
-        alert("❌ ERROR: FALTA DE SALDOS\nAlgunos productos no tienen stock suficiente en el almacén seleccionado. La venta ha sido bloqueada.");
-        return;
-      }
+       if (insufficientStock) {
+         alert("❌ ERROR: FALTA DE SALDOS\nAlgunos productos no tienen stock suficiente en el almacén seleccionado. La venta ha sido bloqueada.");
+         return;
+       }
 
-      const docRes = await fetch('/api/ventas/next-doc').then(res => res.json());
+       const missingUnitsItem = cart.find(item => item.planchas === 0 && item.unidades === 0);
+       if (missingUnitsItem) {
+         alert(`❌ ERROR: ESPECIFIQUE UNIDADES O PLANCHAS\nEl producto "${missingUnitsItem.name}" no tiene cantidad de unidades o planchas especificada.`);
+         return;
+       }
+
+       const docRes = await fetch('/api/ventas/next-doc').then(res => res.json());
       const nextDoc = docRes.nextCode;
 
       const saleDetails: any[] = [];
@@ -447,11 +453,12 @@ export default function POS() {
             <button
               onClick={finalizeSale}
               className="w-full py-5 bg-primary text-bg-main rounded-full text-[10px] font-black uppercase tracking-[0.4em] hover:opacity-90 transition-all shadow-2xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-               disabled={
-                 cart.length === 0 ||
-                 !selectedWarehouse ||
-                 cart.some(item => isStockInsufficient(item, selectedWarehouse))
-               }
+                disabled={
+                  cart.length === 0 ||
+                  !selectedWarehouse ||
+                  cart.some(item => isStockInsufficient(item, selectedWarehouse)) ||
+                  cart.some(item => item.planchas === 0 && item.unidades === 0)
+                }
             >
               REALIZAR PAGO <CreditCard className="w-3 h-3" />
             </button>
@@ -557,8 +564,9 @@ function CartItem({ item, onRemove, onUpdateQty, onUpdateCombinedQty, saldos, se
     return item.selectedPrice * item.qty;
   };
   
-  const insufficient = isStockInsufficient(item, selectedWarehouse);
-  const saldo = saldos?.find((s: any) => s.id_producto === item.id_producto && s.id_almacen === selectedWarehouse?.id_almacen);
+   const insufficient = isStockInsufficient(item, selectedWarehouse);
+   const missingQty = item.planchas === 0 && item.unidades === 0;
+   const saldo = saldos?.find((s: any) => s.id_producto === item.id_producto && s.id_almacen === selectedWarehouse?.id_almacen);
   const stock = saldo?.stock_actual || 0;
   const stockUnit = saldo?.Unidad || 'UNIDADES';
 
@@ -610,32 +618,34 @@ function CartItem({ item, onRemove, onUpdateQty, onUpdateCombinedQty, saldos, se
               <Plus className="w-3 h-3" />
             </button>
           </div>
-          <div className="flex items-center gap-2 border border-text-main/10 rounded-full px-4 py-1 bg-white">
-            <span className="text-[9px] font-bold uppercase opacity-40">PLANCHAS</span>
-            <input
-              type="number"
-              disabled={onlyUnidades}
-              className={cn(
-                "w-10 text-center text-[11px] font-bold focus:outline-none bg-transparent",
-                onlyUnidades && "opacity-30 cursor-not-allowed"
-              )}
-              value={item.planchas}
-              onChange={(e) => onUpdateCombinedQty(item.id_producto, 'planchas', parseInt(e.target.value) || 0)}
-            />
-          </div>
-          <div className="flex items-center gap-2 border border-text-main/10 rounded-full px-4 py-1 bg-white">
-            <span className="text-[9px] font-bold uppercase opacity-40">UNIDADES</span>
-            <input
-              type="number"
-              disabled={onlyPlanchas}
-              className={cn(
-                "w-10 text-center text-[11px] font-bold focus:outline-none bg-transparent",
-                onlyPlanchas && "opacity-30 cursor-not-allowed"
-              )}
-              value={item.unidades}
-              onChange={(e) => onUpdateCombinedQty(item.id_producto, 'unidades', parseInt(e.target.value) || 0)}
-            />
-          </div>
+           <div className="flex items-center gap-2 border border-text-main/10 rounded-full px-4 py-1 bg-white">
+             <span className="text-[9px] font-bold uppercase opacity-40">PLANCHAS</span>
+             <input
+               type="number"
+               disabled={onlyUnidades}
+               className={cn(
+                 "w-10 text-center text-[11px] font-bold focus:outline-none bg-transparent",
+                 onlyUnidades && "opacity-30 cursor-not-allowed",
+                 missingQty && !onlyUnidades && "text-error"
+               )}
+               value={item.planchas}
+               onChange={(e) => onUpdateCombinedQty(item.id_producto, 'planchas', parseInt(e.target.value) || 0)}
+             />
+           </div>
+           <div className="flex items-center gap-2 border border-text-main/10 rounded-full px-4 py-1 bg-white">
+             <span className="text-[9px] font-bold uppercase opacity-40">UNIDADES</span>
+             <input
+               type="number"
+               disabled={onlyPlanchas}
+               className={cn(
+                 "w-10 text-center text-[11px] font-bold focus:outline-none bg-transparent",
+                 onlyPlanchas && "opacity-30 cursor-not-allowed",
+                 missingQty && !onlyPlanchas && "text-error"
+               )}
+               value={item.unidades}
+               onChange={(e) => onUpdateCombinedQty(item.id_producto, 'unidades', parseInt(e.target.value) || 0)}
+             />
+           </div>
         </div>
         <span className="text-xl font-bold">S/ {itemTotal(item).toFixed(2)}</span>
       </div>

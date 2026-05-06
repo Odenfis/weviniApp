@@ -147,6 +147,12 @@ This file serves as the official record of the project's evolution, technical de
     - Resolved the "Unexpected token '<'" JSON syntax error caused by Nginx returning `index.html` instead of API responses.
 - **End-to-End Verification:** Confirmed stability and full functionality of Login, Master Data modules, and the POS transaction flow in the real-world client environment.
 
+### Phase 17: POS Quantity Specification Enforcement
+- **Strict Quantity Validation:** Implemented a mandatory check to ensure that every item in the POS cart has either "Planchas" or "Unidades" specified before allowing the sale to be processed.
+- **Payment Button Logic:** Integrated a lock on the "Realizar Pago" button when any item in the cart is missing a quantity specification.
+- **Visual Feedback:** Added high-visibility error styling (red text) to quantity inputs in `CartItem` to immediately alert the operator about missing data.
+- **Safety Intercept:** Added a final validation layer in `finalizeSale` to prevent API calls if quantity specifications are missing, providing a descriptive error message.
+
 ## 📅 Next Steps (Roadmap)
 - [ ] Implement Product Categories and Lines management.
 - [ ] Build the Dashboard with key metrics.
