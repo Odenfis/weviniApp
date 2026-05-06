@@ -42,18 +42,51 @@ export default function POS() {
   const loadInitialData = async () => {
     setLoading(true);
     try {
-      const [prodRes, wareRes, custRes, salRes] = await Promise.all([
-        fetch('/api/productos').then(res => res.json()),
-        fetch('/api/almacenes').then(res => res.json()),
-        fetch('/api/clientes?all=true').then(res => res.json()),
-        fetch('/api/saldos').then(res => res.json()),
-      ]);
-      setProducts(prodRes);
-      setWarehouses(wareRes);
-      setCustomers(custRes);
-      setSaldos(salRes);
+      // 1. Carga de Productos
+      try {
+        const prodRes = await fetch('/api/productos').then(res => {
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          return res.json();
+        });
+        setProducts(Array.isArray(prodRes) ? prodRes : []);
+      } catch (err) {
+        console.error('❌ Error cargando Productos:', err);
+      }
+
+      // 2. Carga de Almacenes
+      try {
+        const wareRes = await fetch('/api/almacenes').then(res => {
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          return res.json();
+        });
+        setWarehouses(Array.isArray(wareRes) ? wareRes : []);
+      } catch (err) {
+        console.error('❌ Error cargando Almacenes:', err);
+      }
+
+      // 3. Carga de Clientes
+      try {
+        const custRes = await fetch('/api/clientes?all=true').then(res => {
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          return res.json();
+        });
+        setCustomers(Array.isArray(custRes) ? custRes : []);
+      } catch (err) {
+        console.error('❌ Error cargando Clientes:', err);
+      }
+
+      // 4. Carga de Saldos
+      try {
+        const salRes = await fetch('/api/saldos').then(res => {
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          return res.json();
+        });
+        setSaldos(Array.isArray(salRes) ? salRes : []);
+      } catch (err) {
+        console.error('❌ Error cargando Saldos:', err);
+      }
     } catch (err) {
-      console.error('Error loading initial data:', err);
+      console.error('❌ Error crítico en loadInitialData:', err);
     } finally {
       setLoading(false);
     }
