@@ -137,22 +137,17 @@ This file serves as the official record of the project's evolution, technical de
 - **Real-time POS Feedback:** 
     - Integrated high-visibility alerts in `CartItem` using red colors and pulse animations when stock is low.
     - Implemented a preventive lock on the "Realizar Pago" button when any item exceeds available stock.
-### Phase 15: Advanced POS Stock Control & Visual Highlights
-- **Strict Stock Blocking:** Implemented total blocking of sales in the POS when the `stock_actual` in `dim_saldos` is insufficient, preventing negative inventory.
-- **Dynamic Unit Conversion:** Developed a robust validation system (`isStockInsufficient`) that handles different inventory units (Planchas vs Unidades) by converting everything to a common base for accurate comparison.
-- **Real-time POS Feedback:** 
-    - Integrated high-visibility alerts in `CartItem` using red colors and pulse animations when stock is low.
-    - Implemented a preventive lock on the "Realizar Pago" button when any item exceeds available stock.
-- **Inventory Data Highlighting:** Enhanced the Inventory view by highlighting the "Unidad" and "Stock Actual" columns in orange (`text-orange-600`) to improve data scanning and contrast.
-- **Direct Stock Adjustment:** Implemented a relative stock adjustment system in the Inventory view. Users can now increase or decrease `stock_actual` using a dedicated modal that sends a positive or negative delta to the `usp_Saldos_UpdateStock` stored procedure.
+### Phase 16: Client Deployment & Production Stability
+- **Production Deployment:** Successfully deployed the application on the client's environment using SQL Server 2025 and Docker Desktop.
+- **POS Resilience Upgrade:** 
+    - Refactored `loadInitialData` in `POS.tsx` to replace `Promise.all` with independent data fetching. This prevents a single API failure from blocking the entire POS view.
+    - Implemented detailed diagnostic error logging in the frontend to allow rapid identification of production API issues.
+- **Critical Routing Fix:** 
+    - Configured an Nginx reverse proxy in `Dockerfile.frontend` to correctly route `/api` requests to the backend container. 
+    - Resolved the "Unexpected token '<'" JSON syntax error caused by Nginx returning `index.html` instead of API responses.
+- **End-to-End Verification:** Confirmed stability and full functionality of Login, Master Data modules, and the POS transaction flow in the real-world client environment.
 
 ## 📅 Next Steps (Roadmap)
 - [ ] Implement Product Categories and Lines management.
-- [x] Implement Stock management (Add/Subtract movements).
-- [ ] Build the Dashboard with key metrics.
-- [ ] Implement Role-Based Access Control (RBAC) for 'Administrador' vs 'Operador'.
-
-- [ ] Implement Product Categories and Lines management.
-- [ ] Implement Stock management (Add/Subtract movements).
 - [ ] Build the Dashboard with key metrics.
 - [ ] Implement Role-Based Access Control (RBAC) for 'Administrador' vs 'Operador'.
