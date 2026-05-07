@@ -108,48 +108,50 @@ export default function POS() {
 
   const addSelectedPresentation = (priceData: any) => {
     setCart(prev => {
-      const existing = prev.find(item => item.id_producto === priceData.id_producto && item.selectedPresentation === priceData.presentacion);
+      const existing = prev.find(item => item.id_precio === priceData.id_precio);
       if (existing) {
-        return prev.map(item => (item.id_producto === priceData.id_producto && item.selectedPresentation === priceData.presentacion) ? { ...item, qty: item.qty + 1 } : item);
+        return prev.map(item => (item.id_precio === priceData.id_precio) ? { ...item, qty: item.qty + 1 } : item);
       }
 
-      return [...prev, {
-        id_producto: priceData.id_producto,
-        name: priceData.Nombre,
-        priceMap: presentations.reduce((acc, p) => {
-          acc[p.presentacion] = { price: p.precio_venta, cost: p.precio_compra, code: p.codigo_unidad, base: p.cantidad_base };
-          return acc;
-        }, {} as any),
-        selectedPresentation: priceData.presentacion,
-        selectedPrice: priceData.precio_venta,
-        selectedCost: priceData.precio_compra,
-        selectedUnitCode: priceData.codigo_unidad,
-        planchas: 0,
-        unidades: 0,
-        qty: 1
-      }];
+       return [...prev, {
+         id_producto: priceData.id_producto,
+         id_precio: priceData.id_precio,
+         name: priceData.Nombre,
+         priceMap: presentations.reduce((acc, p) => {
+           acc[p.presentacion] = { price: p.precio_venta, cost: p.precio_compra, code: p.codigo_unidad, base: p.cantidad_base };
+           return acc;
+         }, {} as any),
+         selectedPresentation: priceData.presentacion,
+         selectedPrice: priceData.precio_venta,
+         selectedCost: priceData.precio_compra,
+         selectedUnitCode: priceData.codigo_unidad,
+         unidades: priceData.cantidad_base || 0,
+         qty: 1
+       }];
     });
     setShowPriceModal(false);
     setPendingProduct(null);
   };
 
-  const removeFromCart = (id_producto: number, presentation: string) => {
-    setCart(prev => prev.filter(item => !(item.id_producto === id_producto && item.selectedPresentation === presentation)));
+  const removeFromCart = (id_precio: number) => {
+    setCart(prev => prev.filter(item => item.id_precio !== id_precio));
   };
 
-  const updateQty = (id_producto: number, presentation: string, delta: number) => {
+  const updateQty = (id_precio: number, delta: number) => {
     setCart(prev => prev.map(item => {
-      if (item.id_producto === id_producto && item.selectedPresentation === presentation) {
-        return { ...item, qty: Math.max(1, item.qty + delta) };
+      if (item.id_precio === id_precio) {
+        const newQty = Math.max(1, item.qty + delta);
+        const base = item.priceMap?.[item.selectedPresentation]?.base || 1;
+        return { ...item, qty: newQty, unidades: newQty * base };
       }
       return item;
     }));
   };
 
-  const updateCombinedQty = (id_producto: number, field: 'planchas' | 'unidades', value: number) => {
+  const updateUnits = (id_precio: number, value: number) => {
     setCart(prev => prev.map(item => {
-      if (item.id_producto === id_producto) {
-        return { ...item, [field]: Math.max(0, value) };
+      if (item.id_precio === id_precio) {
+        return { ...item, unidades: Math.max(0, value) };
       }
       return item;
     }));
@@ -168,22 +170,22 @@ export default function POS() {
   };
 
   const calculateTotalRequestedInUnits = (item: any) => {
-    const pBase = getBaseFactor(item.priceMap, 'PLANCHA');
-    const uBase = getBaseFactor(item.priceMap, 'UNIDAD');
-    const gBase = item.priceMap?.[item.selectedPresentation]?.base || 1;
-
-    if (item.planchas > 0 || item.unidades > 0) {
-      return (item.planchas * pBase) + (item.unidades * uBase);
+    if (item.unidades !== undefined && item.unidades !== null) {
+      return item.unidades;
     }
-    return item.qty * gBase;
+    return item.qty * (item.priceMap?.[item.selectedPresentation]?.base || 1);
   };
 
-  const isStockInsufficient = (item: any, warehouse: any) => {
+  const isStockInsufficient = (item: any, warehouse: any, cart: any[]) => {
     if (!warehouse) return false;
     const saldo = saldos?.find((s: any) => s.id_producto === item.id_producto && s.id_almacen === warehouse.id_almacen);
     if (!saldo) return true; // No saldo record means no stock
 
-    const requestedUnits = calculateTotalRequestedInUnits(item);
+    // Calculate total demand for this product across the whole cart
+    const totalRequestedUnits = cart
+      .filter((i: any) => i.id_producto === item.id_producto)
+      .reduce((sum: number, i: any) => sum + calculateTotalRequestedInUnits(i), 0);
+
     const stockActual = saldo.stock_actual || 0;
     const stockUnit = saldo.Unidad || 'UNIDADES';
 
@@ -193,7 +195,7 @@ export default function POS() {
       ? stockActual * pBase 
       : stockActual;
 
-    return requestedUnits > stockInUnits;
+    return totalRequestedUnits > stockInUnits;
   };
 
   const subtotal = cart.reduce((acc, item) => acc + calculateItemTotal(item), 0);
@@ -209,22 +211,22 @@ export default function POS() {
     try {
       // Stock check for confirmation
       let insufficientStock = false;
-      cart.forEach(item => {
-        if (isStockInsufficient(item, selectedWarehouse)) {
-          insufficientStock = true;
-        }
-      });
+       cart.forEach(item => {
+         if (isStockInsufficient(item, selectedWarehouse, cart)) {
+           insufficientStock = true;
+         }
+       });
 
        if (insufficientStock) {
          alert("❌ ERROR: FALTA DE SALDOS\nAlgunos productos no tienen stock suficiente en el almacén seleccionado. La venta ha sido bloqueada.");
          return;
        }
 
-       const missingUnitsItem = cart.find(item => item.planchas === 0 && item.unidades === 0);
-       if (missingUnitsItem) {
-         alert(`❌ ERROR: ESPECIFIQUE UNIDADES O PLANCHAS\nEl producto "${missingUnitsItem.name}" no tiene cantidad de unidades o planchas especificada.`);
-         return;
-       }
+        const missingUnitsItem = cart.find(item => item.unidades === 0);
+        if (missingUnitsItem) {
+          alert(`❌ ERROR: ESPECIFIQUE UNIDADES\nEl producto "${missingUnitsItem.name}" no tiene cantidad de unidades especificada.`);
+          return;
+        }
 
        const docRes = await fetch('/api/ventas/next-doc').then(res => res.json());
       const nextDoc = docRes.nextCode;
@@ -232,38 +234,19 @@ export default function POS() {
       const saleDetails: any[] = [];
 
       cart.forEach(item => {
-        const { planchas, unidades, priceMap, qty, selectedPrice, selectedCost } = item;
+        const { unidades, qty, selectedPrice, selectedCost } = item;
 
-        // Determine the units for both financial and inventory records
-        // Use the actual unit code for the invoice
         const unitFactura = (item.selectedUnitCode || 'UND').padEnd(10, ' ');
-
-        // Determine which inventory unit to deduct from based on the quantity type used
-        let unitSaldos = 'UNIDADES';
-        if (planchas > 0) {
-          unitSaldos = 'PLANCHAS';
-        } else if (unidades > 0) {
-          unitSaldos = 'UNIDADES';
-        } else {
-          const productSaldo = saldos?.find((s: any) => s.id_producto === item.id_producto && s.id_almacen === selectedWarehouse?.id_almacen);
-          unitSaldos = productSaldo?.Unidad || 'UNIDADES';
-        }
-
-        // Calculate stock quantity to deduct
-        const pBase = priceMap['PLANCHA']?.base || 1;
-        const uBase = priceMap['UNIDAD']?.base || 1;
-        const gBase = priceMap[item.selectedPresentation]?.base || 1;
-
-        const stockQuantity = (planchas > 0) ? planchas :
-          (unidades > 0) ? unidades :
-            (qty * gBase);
+        const unitSaldos = 'UNIDADES';
+        const stockQuantity = unidades;
 
         saleDetails.push({
           id_producto: item.id_producto,
-          unidad_factura: unitFactura,   // FK match for invoice
-          unidad_saldos: unitSaldos,     // Match for inventory
-          cantidad_venta: qty,           // Financial quantity
-          cantidad_stock: stockQuantity, // Inventory quantity
+          unidad_factura: unitFactura,
+          unidad_saldos: unitSaldos,
+          cantidad_venta: qty,
+          unidades_vendidas: stockQuantity,
+          cantidad_stock: stockQuantity,
           precio_unitario: selectedPrice,
           descuento: 0,
           subtotal: qty * selectedPrice,
@@ -300,10 +283,10 @@ export default function POS() {
         setSelectedCustomer(null);
         setSelectedWarehouse(null);
         setObservations('');
-      } else {
-        const err = await res.json();
-        alert('Error: ' + err.message);
-      }
+        } else {
+          const err = await res.json();
+          alert(`Error: ${err.message}\n\nDetail: ${err.detail || 'N/A'}\nSQL Error: ${err.sqlError || 'N/A'}`);
+        }
     } catch (err) {
       console.error('Sale error:', err);
       alert('An unexpected error occurred');
@@ -330,14 +313,14 @@ export default function POS() {
         <div className="w-[800px] border-r border-text-main/10 flex flex-col bg-bg-main relative">
           <div className="absolute top-0 left-0 w-1 h-full bg-text-main opacity-10"></div>
 
-          <div className="p-5 border-b border-text-main/10 space-y-3">
-            <div className="flex items-center justify-between mb-6">
+          <div className="p-4 border-b border-text-main/10 space-y-2">
+            <div className="flex items-center justify-between mb-4">
               <h3 className="text-4xl font-black text-text-main">Ticket Activo</h3>
               <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">{cart.length} Items</span>
             </div>
-
-
-            <div className="grid grid-cols-1 gap-3">
+ 
+ 
+            <div className="grid grid-cols-1 gap-2">
               <div className="relative">
                 <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Seleccionar Cliente</span>
                 <select
@@ -369,7 +352,7 @@ export default function POS() {
 
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <div className="relative">
                 <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Tipo Documento</span>
                 <select
@@ -398,30 +381,30 @@ export default function POS() {
 
             <div className="relative">
               <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Observaciones</span>
-              <textarea
-                className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg bg-transparent focus:outline-none focus:border-primary resize-none text-text-main"
-                rows={2}
-                value={observations}
-                onChange={(e) => setObservations(e.target.value)}
-                placeholder="Agregar observación..."
-              />
+               <textarea
+                 className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg bg-transparent focus:outline-none focus:border-primary resize-none text-text-main"
+                 rows={1}
+                 value={observations}
+                 onChange={(e) => setObservations(e.target.value)}
+                 placeholder="Agregar observación..."
+               />
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-6">
             <AnimatePresence initial={false}>
-              {cart.map(item => (
-                <CartItem
-                  key={item.id_producto}
-                  item={item}
-                  onRemove={removeFromCart}
-                  onUpdateQty={updateQty}
-                  onUpdateCombinedQty={updateCombinedQty}
-                  saldos={saldos}
-                  selectedWarehouse={selectedWarehouse}
-                  isStockInsufficient={isStockInsufficient}
-                />
-              ))}
+               {cart.map(item => (
+                  <CartItem
+                    key={item.id_precio}
+                    item={item}
+                    onRemove={removeFromCart}
+                    onUpdateQty={updateQty}
+                    onUpdateUnits={updateUnits}
+                    saldos={saldos}
+                    selectedWarehouse={selectedWarehouse}
+                    isStockInsufficient={(i, w) => isStockInsufficient(i, w, cart)}
+                  />
+               ))}
             </AnimatePresence>
 
             {cart.length === 0 && (
@@ -453,15 +436,23 @@ export default function POS() {
             <button
               onClick={finalizeSale}
               className="w-full py-5 bg-primary text-bg-main rounded-full text-[10px] font-black uppercase tracking-[0.4em] hover:opacity-90 transition-all shadow-2xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={
-                  cart.length === 0 ||
-                  !selectedWarehouse ||
-                  cart.some(item => isStockInsufficient(item, selectedWarehouse)) ||
-                  cart.some(item => item.planchas === 0 && item.unidades === 0)
-                }
+               disabled={
+                cart.length === 0 ||
+                !selectedWarehouse ||
+                cart.some(item => isStockInsufficient(item, selectedWarehouse, cart)) ||
+                cart.some(item => item.unidades === 0)
+              }
             >
-              REALIZAR PAGO <CreditCard className="w-3 h-3" />
+              {(!selectedCustomer || !selectedWarehouse || cart.some(item => isStockInsufficient(item, selectedWarehouse, cart)) || cart.some(item => item.unidades === 0)) 
+                ? ( !selectedCustomer ? "SELECCIONE CLIENTE" : !selectedWarehouse ? "SELECCIONE ALMACÉN" : cart.some(item => isStockInsufficient(item, selectedWarehouse, cart)) ? "STOCK INSUFICIENTE" : "ESPECIFIQUE UNIDADES" )
+                : "REALIZAR PAGO"
+              } <CreditCard className="w-3 h-3" />
             </button>
+            {(!selectedCustomer || !selectedWarehouse) && (
+              <p className="text-center text-[9px] font-bold uppercase opacity-40 mt-2">
+                {!selectedCustomer ? "⚠️ Seleccione un cliente para continuar" : !selectedWarehouse ? "⚠️ Seleccione un almacén para validar stock" : ""}
+              </p>
+            )}
           </div>
         </div>
 
@@ -559,96 +550,81 @@ function ProductCard({ product, onAdd }: any) {
   );
 }
 
-function CartItem({ item, onRemove, onUpdateQty, onUpdateCombinedQty, saldos, selectedWarehouse, isStockInsufficient }: any) {
+function CartItem({ item, onRemove, onUpdateQty, onUpdateUnits, saldos, selectedWarehouse, isStockInsufficient }: any) {
   const itemTotal = (item: any) => {
     return item.selectedPrice * item.qty;
   };
   
    const insufficient = isStockInsufficient(item, selectedWarehouse);
-   const missingQty = item.planchas === 0 && item.unidades === 0;
+   const missingQty = item.unidades === 0;
    const saldo = saldos?.find((s: any) => s.id_producto === item.id_producto && s.id_almacen === selectedWarehouse?.id_almacen);
-  const stock = saldo?.stock_actual || 0;
-  const stockUnit = saldo?.Unidad || 'UNIDADES';
-
-  const isHuevoPardo = item.name?.toUpperCase().includes('PARDOS') || item.name?.toUpperCase().includes('PARDO');
-  const onlyPlanchas = isHuevoPardo;
-  const onlyUnidades = !isHuevoPardo;
-
-  return (
-    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="group border-b border-text-main/10 pb-6 mb-6 last:border-b-0 last:mb-0">
-      <div className="flex justify-between items-start mb-2">
-        <div>
-          <h5 className="text-xl font-bold uppercase tracking-widest text-text-main">{item.name}</h5>
-          <p className="text-sm font-medium opacity-70">
-            {item.planchas > 0 || item.unidades > 0
-              ? 'Combined Quantities'
-              : `${item.selectedPresentation} • S/ ${item.selectedPrice.toFixed(2)}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-           {(() => {
-             return (
-               <span className={cn("text-[10px] font-bold uppercase", insufficient ? "text-error animate-pulse" : "opacity-30")}>
-                 {insufficient ? `❌ STOCK INSUFICIENTE (${stock} ${stockUnit})` : `Stock: ${stock} ${stockUnit}`}
-               </span>
-             );
-           })()}
-          <button
-            onClick={() => onRemove(item.id_producto, item.selectedPresentation)}
-            className="text-text-main/20 hover:text-text-main transition-colors"
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
-        </div>
-      </div>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-4 border border-text-main/10 rounded-full px-4 py-1 bg-white">
+   const stock = saldo?.stock_actual || 0;
+   const stockUnit = saldo?.Unidad || 'UNIDADES';
+ 
+   return (
+     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="group border-b border-text-main/10 pb-6 mb-6 last:border-b-0 last:mb-0">
+       <div className="flex justify-between items-start mb-2">
+         <div>
+           <h5 className="text-xl font-bold uppercase tracking-widest text-text-main">{item.name}</h5>
+            <p className="text-sm font-medium opacity-70">
+              {`${item.selectedPresentation} • S/ ${item.selectedPrice.toFixed(2)}`}
+            </p>
+         </div>
+         <div className="flex items-center gap-4">
+            {(() => {
+              if (!selectedWarehouse) {
+                return <span className="text-[10px] font-bold uppercase opacity-30">Seleccione Almacén</span>;
+              }
+              if (!saldo) {
+                return <span className="text-[10px] font-bold uppercase opacity-30">Sin registro</span>;
+              }
+              return (
+                <span className={cn("text-[10px] font-bold uppercase", insufficient ? "text-error animate-pulse" : "opacity-30")}>
+                  {insufficient ? `❌ STOCK INSUFICIENTE (${stock} ${stockUnit})` : `Stock: ${stock} ${stockUnit}`}
+                </span>
+              );
+            })()}
             <button
-              onClick={() => onUpdateQty(item.id_producto, item.selectedPresentation, -1)}
-              className="text-text-main/40 hover:text-text-main transition-colors"
+              onClick={() => onRemove(item.id_precio)}
+              className="text-text-main/20 hover:text-text-main transition-colors"
             >
-              <Minus className="w-3 h-3" />
-            </button>
-            <span className="text-[11px] font-bold min-w-[20px] text-center">{item.qty}</span>
-            <button
-              onClick={() => onUpdateQty(item.id_producto, item.selectedPresentation, 1)}
-              className="text-text-main/40 hover:text-text-main transition-colors"
-            >
-              <Plus className="w-3 h-3" />
+              <Trash2 className="w-3 h-3" />
             </button>
           </div>
-           <div className="flex items-center gap-2 border border-text-main/10 rounded-full px-4 py-1 bg-white">
-             <span className="text-[9px] font-bold uppercase opacity-40">PLANCHAS</span>
-             <input
-               type="number"
-               disabled={onlyUnidades}
-               className={cn(
-                 "w-10 text-center text-[11px] font-bold focus:outline-none bg-transparent",
-                 onlyUnidades && "opacity-30 cursor-not-allowed",
-                 missingQty && !onlyUnidades && "text-error"
-               )}
-               value={item.planchas}
-               onChange={(e) => onUpdateCombinedQty(item.id_producto, 'planchas', parseInt(e.target.value) || 0)}
-             />
-           </div>
-           <div className="flex items-center gap-2 border border-text-main/10 rounded-full px-4 py-1 bg-white">
-             <span className="text-[9px] font-bold uppercase opacity-40">UNIDADES</span>
-             <input
-               type="number"
-               disabled={onlyPlanchas}
-               className={cn(
-                 "w-10 text-center text-[11px] font-bold focus:outline-none bg-transparent",
-                 onlyPlanchas && "opacity-30 cursor-not-allowed",
-                 missingQty && !onlyPlanchas && "text-error"
-               )}
-               value={item.unidades}
-               onChange={(e) => onUpdateCombinedQty(item.id_producto, 'unidades', parseInt(e.target.value) || 0)}
-             />
-           </div>
         </div>
-        <span className="text-xl font-bold">S/ {itemTotal(item).toFixed(2)}</span>
-      </div>
-    </motion.div>
-  );
-}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 border border-text-main/10 rounded-full px-4 py-1 bg-white">
+              <button
+                onClick={() => onUpdateQty(item.id_precio, -1)}
+                className="text-text-main/40 hover:text-text-main transition-colors"
+              >
+                <Minus className="w-3 h-3" />
+              </button>
+              <span className="text-[11px] font-bold min-w-[20px] text-center">{item.qty}</span>
+              <button
+                onClick={() => onUpdateQty(item.id_precio, 1)}
+                className="text-text-main/40 hover:text-text-main transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
+             <div className="flex items-center gap-3 border border-text-main/10 rounded-full px-5 py-1.5 bg-white">
+               <span className="text-[9px] font-bold uppercase opacity-40">UNIDADES</span>
+               <input
+                 type="number"
+                 onFocus={(e) => e.target.select()}
+                 className={cn(
+                   "w-14 text-center text-[11px] font-bold focus:outline-none bg-transparent",
+                   missingQty && "text-error"
+                 )}
+                 value={item.unidades}
+                 onChange={(e) => onUpdateUnits(item.id_precio, parseInt(e.target.value) || 0)}
+               />
+             </div>
+          </div>
+          <span className="text-xl font-bold">S/ {itemTotal(item).toFixed(2)}</span>
+        </div>
+      </motion.div>
+    );
+  }

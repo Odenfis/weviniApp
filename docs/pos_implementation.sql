@@ -1,6 +1,8 @@
+-- Last Updated: 2026-05-06
+-- Project: Wevini App - POS Implementation
+
 -- 1. Get all active presentations for a product
 -- Expected columns: id_precio, id_producto, presentacion, cantidad_base, precio_venta, precio_compra, id_unidad, codigo_unidad
-
 CREATE OR ALTER PROCEDURE [dbo].[usp_Precios_GetByProd]
     @id_prod INT
 AS
@@ -24,7 +26,7 @@ GO
 
 -- 2. Insert Sale (Header and Details)
 -- IMPLEMENTATION: Decouples Financial Transaction from Inventory Movement
--- This handles the conflict between short codes (FK in fact_ventas_detalle) and descriptive names (dim_saldos)
+-- UPDATED 2026-05-07: Transitioned to UNIT-only stock management. uses 'unidades_vendidas' for inventory deduction.
 CREATE OR ALTER PROCEDURE [dbo].[usp_Ventas_Insert]
     @id_cliente INT,
     @id_almacen INT,
@@ -40,7 +42,7 @@ CREATE OR ALTER PROCEDURE [dbo].[usp_Ventas_Insert]
     @estado CHAR(20),
     @observaciones TEXT,
     @detalles_json NVARCHAR(MAX) 
-    -- JSON format: [{"id_producto": 1, "unidad_factura": "UND       ", "unidad_saldos": "UNIDADES", "cantidad_venta": 1, "cantidad_stock": 5, "precio_unitario": 10.0, "descuento": 0, "subtotal": 10.0, "costo_unitario": 8.0}, ...]
+    -- JSON format: [{"id_producto": 1, "unidad_factura": "UND       ", "cantidad_venta": 1, "unidades_vendidas": 5, "precio_unitario": 10.0, "descuento": 0, "subtotal": 10.0, "costo_unitario": 8.0}, ...]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -63,36 +65,48 @@ BEGIN
         SET @id_venta = SCOPE_IDENTITY();
         
         -- 2. Insert Details (Financial)
-        -- Uses 'unidad_factura' for Foreign Key compatibility and 'cantidad_venta' for billing
         INSERT INTO [dbo].[fact_ventas_detalle] (
-            id_venta, id_producto, Unidad, cantidad, precio_unitario, descuento, subtotal, costo_unitario
+            id_venta, id_producto, Unidad, cantidad, precio_unitario, descuento, subtotal, costo_unitario, unidades_vendidas
         )
         SELECT 
             @id_venta, 
-            JSON_VALUE(value, '$.id_producto'), 
-            JSON_VALUE(value, '$.unidad_factura'), 
-            CAST(JSON_VALUE(value, '$.cantidad_venta') AS DECIMAL(12,4)), 
-            CAST(JSON_VALUE(value, '$.precio_unitario') AS DECIMAL(10,4)), 
-            CAST(JSON_VALUE(value, '$.descuento') AS DECIMAL(10,4)), 
-            CAST(JSON_VALUE(value, '$.subtotal') AS DECIMAL(12,2)), 
-            CAST(JSON_VALUE(value, '$.costo_unitario') AS DECIMAL(10,4))
+            TRY_CAST(JSON_VALUE(value, '$.id_producto') AS INT), 
+            CAST(JSON_VALUE(value, '$.unidad_factura') AS VARCHAR(10)), 
+            TRY_CAST(JSON_VALUE(value, '$.cantidad_venta') AS DECIMAL(12,4)), 
+            TRY_CAST(JSON_VALUE(value, '$.precio_unitario') AS DECIMAL(10,4)), 
+            TRY_CAST(JSON_VALUE(value, '$.descuento') AS DECIMAL(10,4)), 
+            TRY_CAST(JSON_VALUE(value, '$.subtotal') AS DECIMAL(12,2)), 
+            TRY_CAST(JSON_VALUE(value, '$.costo_unitario') AS DECIMAL(10,4)),
+            TRY_CAST(JSON_VALUE(value, '$.unidades_vendidas') AS DECIMAL(10,4))
         FROM OPENJSON(@detalles_json);
 
         -- 3. Update Inventory (Logistical)
-        -- Uses 'unidad_saldos' for descriptive match and 'cantidad_stock' for actual deduction
+        -- Deduct total units from dim_saldos where Unidad = 'UNIDADES'
+        ;WITH SaleDemand AS (
+            SELECT 
+                TRY_CAST(JSON_VALUE(value, '$.id_producto') AS INT) as id_producto,
+                TRY_CAST(JSON_VALUE(value, '$.unidades_vendidas') AS DECIMAL(12,4)) as qty
+            FROM OPENJSON(@detalles_json)
+        ),
+        AggregatedDemand AS (
+            SELECT 
+                id_producto,
+                SUM(qty) as TotalDeduct
+            FROM SaleDemand
+            GROUP BY id_producto
+        )
         UPDATE s
-        SET s.stock_actual = s.stock_actual - CAST(JSON_VALUE(j.value, '$.cantidad_stock') AS DECIMAL(12,4))
+        SET s.stock_actual = ISNULL(s.stock_actual, 0) - ad.TotalDeduct
         FROM [dbo].[dim_saldos] s
-        CROSS JOIN OPENJSON(@detalles_json) j
-        WHERE s.id_producto = CAST(JSON_VALUE(j.value, '$.id_producto') AS INT)
-          AND s.id_almacen = @id_almacen
-          AND s.Unidad = JSON_VALUE(j.value, '$.unidad_saldos');
+        INNER JOIN AggregatedDemand ad ON s.id_producto = ad.id_producto 
+        WHERE s.id_almacen = @id_almacen 
+          AND RTRIM(LTRIM(s.Unidad)) = 'UNIDADES';
         
         COMMIT TRANSACTION;
         SELECT @id_venta AS id_venta;
     END TRY
     BEGIN CATCH
-        ROLLBACK TRANSACTION;
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
         THROW;
     END CATCH
 END
@@ -108,7 +122,6 @@ END
 GO
 
 -- 4. Manual Stock Adjustment (Incremental)
--- Used for adding or subtracting stock from a specific record
 CREATE OR ALTER PROCEDURE [dbo].[usp_Saldos_UpdateStock]
     @id INT,
     @ajuste_stock DECIMAL(12, 4)
@@ -122,3 +135,21 @@ BEGIN
 END
 GO
 
+-- 5. Utility for Next Document Code Generation
+-- UPDATED 2026-05-06: Fixed sorting for CHAR columns to prevent duplicate document numbers
+CREATE OR ALTER PROCEDURE [dbo].[usp_Utils_GetNextCode]
+    @tableName NVARCHAR(128),
+    @columnName NVARCHAR(128)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @sql NVARCHAR(MAX);
+    
+    -- Sort by length first, then by value, to ensure correct numeric sequence in CHAR columns
+    SET @sql = N'SELECT TOP 1 ' + QUOTENAME(@columnName) + ' AS NextCode 
+                 FROM ' + QUOTENAME(@tableName) + ' 
+                 ORDER BY LEN(' + QUOTENAME(@columnName) + ') DESC, ' + QUOTENAME(@columnName) + ' DESC';
+    
+    EXEC sp_executesql @sql;
+END
+GO

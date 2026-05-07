@@ -153,6 +153,34 @@ This file serves as the official record of the project's evolution, technical de
 - **Visual Feedback:** Added high-visibility error styling (red text) to quantity inputs in `CartItem` to immediately alert the operator about missing data.
 - **Safety Intercept:** Added a final validation layer in `finalizeSale` to prevent API calls if quantity specifications are missing, providing a descriptive error message.
 
+### Phase 18: POS Precision & UX Refinement
+- **Cart Item Identification:** Refactored cart logic to use `id_precio` instead of presentation name. This allows multiple lines of the same presentation (e.g., "PLANCHA") with different prices without merging them incorrectly.
+- **Accumulated Stock Validation:** Updated `isStockInsufficient` to calculate the total demand of a product across all cart lines, preventing negative stock when multiple presentations of the same product are sold.
+- **Input UX "Intelligent Entry":**
+    - Implemented auto-selection of text on focus for quantity inputs, allowing instant typing.
+    - Expanded input field widths and padding for better accessibility in the POS.
+- **UI Polish:**
+    - Compacted the Ticket header and observations area to maximize vertical space for the product list.
+    - Restored presentation details in `CartItem` and removed the "Combined Quantities" label for better clarity.
+    - Fixed duplicate quantity inputs in the UI.
+- **Database Stability & Bug Fixes:**
+    - **`usp_Ventas_Insert`**: Rewrote with CTEs and `RTRIM/LTRIM` to correctly aggregate stock deductions and handle `CHAR` padding issues.
+    - **`usp_Utils_GetNextCode`**: Fixed document sequence sorting logic to handle numeric strings in `CHAR` columns correctly, eliminating duplicate document number errors.
+    - **Documentation**: Updated `docs/pos_implementation.sql` with all current SP versions and timestamps.
+
+### Phase 19: POS Transition to Unit-Only Stock Model
+- **Inventory Model Simplification:**
+    - Eliminated "Planchas" concept from the POS; transitioned entire transaction flow to a single-unit model based on `dim_producto_precios.cantidad_base`.
+    - Integrated automatic unit calculation: `qty * cantidad_base` updates the units field instantly.
+- **Backend & Database Alignment:**
+    - Updated `usp_Ventas_Insert` to record `unidades_vendidas` in `fact_ventas_detalle`.
+    - Modified stock deduction logic in `dim_saldos` to strictly deduct from the `'UNIDADES'` row, ensuring consistency with the normalized database.
+- **Advanced Stock Intelligence & UX:**
+    - **Enhanced Visual Feedback:** Replaced misleading "0 UNIDADES" with context-aware labels: "Seleccione Almacén" (no warehouse) and "Sin registro" (no stock record).
+    - **Cumulative Validation:** Refined `isStockInsufficient` to sum total unit demand across all presentations of the same product before validating against available stock.
+    - **Dynamic Payment Lock:** Implemented an intelligent "Realizar Pago" button that dynamically updates its text to inform the user of the exact blocking reason (Client, Warehouse, Stock, or Missing Units).
+    - **Input Precision:** Corrected unit calculation logic to handle `0` values correctly, preventing unexpected fallbacks during manual entry.
+
 ## 📅 Next Steps (Roadmap)
 - [ ] Implement Product Categories and Lines management.
 - [ ] Build the Dashboard with key metrics.
