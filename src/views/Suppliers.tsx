@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { apiFetch } from '../lib/api';
 
 interface Supplier {
   id_proveedor: number;
@@ -41,7 +42,7 @@ export default function Suppliers() {
   const fetchSuppliers = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/suppliers?all=true');
+      const res = await apiFetch('http://localhost:3001/api/suppliers?all=true');
       const data = await res.json();
       setSuppliers(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -59,7 +60,7 @@ export default function Suppliers() {
 
   const openCreateModal = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/suppliers/next-code');
+      const res = await apiFetch('http://localhost:3001/api/suppliers/next-code');
       const { nextCode } = await res.json();
       setNextCode(nextCode.toString());
     } catch (err) {
@@ -77,12 +78,12 @@ export default function Suppliers() {
         : 'http://localhost:3001/api/suppliers';
       const method = editingSupplier ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(supplierData),
       });
-
+ 
       if (res.ok) {
         await fetchSuppliers();
         setIsModalOpen(false);
@@ -90,6 +91,7 @@ export default function Suppliers() {
         const errData = await res.json();
         alert(errData.detail || 'Error al guardar el proveedor');
       }
+
     } catch (err) {
       alert('Error de conexión con el servidor');
     }

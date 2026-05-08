@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { apiFetch } from '../lib/api';
 
 export default function POS() {
   const [products, setProducts] = useState<any[]>([]);
@@ -44,7 +45,7 @@ export default function POS() {
     try {
       // 1. Carga de Productos
       try {
-        const prodRes = await fetch('/api/productos').then(res => {
+        const prodRes = await apiFetch('/api/productos').then(res => {
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
           return res.json();
         });
@@ -52,10 +53,10 @@ export default function POS() {
       } catch (err) {
         console.error('❌ Error cargando Productos:', err);
       }
-
+ 
       // 2. Carga de Almacenes
       try {
-        const wareRes = await fetch('/api/almacenes').then(res => {
+        const wareRes = await apiFetch('/api/almacenes').then(res => {
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
           return res.json();
         });
@@ -63,10 +64,10 @@ export default function POS() {
       } catch (err) {
         console.error('❌ Error cargando Almacenes:', err);
       }
-
+ 
       // 3. Carga de Clientes
       try {
-        const custRes = await fetch('/api/clientes?all=true').then(res => {
+        const custRes = await apiFetch('/api/clientes?all=true').then(res => {
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
           return res.json();
         });
@@ -74,10 +75,10 @@ export default function POS() {
       } catch (err) {
         console.error('❌ Error cargando Clientes:', err);
       }
-
+ 
       // 4. Carga de Saldos
       try {
-        const salRes = await fetch('/api/saldos').then(res => {
+        const salRes = await apiFetch('/api/saldos').then(res => {
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
           return res.json();
         });
@@ -85,6 +86,7 @@ export default function POS() {
       } catch (err) {
         console.error('❌ Error cargando Saldos:', err);
       }
+
     } catch (err) {
       console.error('❌ Error crítico en loadInitialData:', err);
     } finally {
@@ -96,7 +98,7 @@ export default function POS() {
     console.log('Product selected:', product);
     setPendingProduct(product);
     try {
-      const res = await fetch(`/api/productos/${product.id_producto}/presentaciones`);
+      const res = await apiFetch(`/api/productos/${product.id_producto}/presentaciones`);
       const data = await res.json();
       console.log('Presentations fetched:', data);
       setPresentations(data);
@@ -217,19 +219,20 @@ export default function POS() {
          }
        });
 
-       if (insufficientStock) {
-         alert("❌ ERROR: FALTA DE SALDOS\nAlgunos productos no tienen stock suficiente en el almacén seleccionado. La venta ha sido bloqueada.");
-         return;
-       }
-
-        const missingUnitsItem = cart.find(item => item.unidades === 0);
-        if (missingUnitsItem) {
-          alert(`❌ ERROR: ESPECIFIQUE UNIDADES\nEl producto "${missingUnitsItem.name}" no tiene cantidad de unidades especificada.`);
+        if (insufficientStock) {
+          alert("❌ ERROR: FALTA DE SALDOS\nAlgunos productos no tienen stock suficiente en el almacén seleccionado. La venta ha sido bloqueada.");
           return;
         }
+ 
+        if (cart.some(item => item.unidades === 0)) {
+          const missingUnitsItem = cart.find(item => item.unidades === 0);
+          alert(`❌ ERROR: ESPECIFIQUE UNIDADES\nEl producto "${missingUnitsItem?.name}" no tiene cantidad de unidades especificada.`);
+          return;
+        }
+ 
+        const docRes = await apiFetch('/api/ventas/next-doc').then(res => res.json());
+       const nextDoc = docRes.nextCode;
 
-       const docRes = await fetch('/api/ventas/next-doc').then(res => res.json());
-      const nextDoc = docRes.nextCode;
 
       const saleDetails: any[] = [];
 
@@ -271,11 +274,12 @@ export default function POS() {
         detalles: saleDetails
       };
 
-      const res = await fetch('/api/ventas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(saleData)
-      });
+       const res = await apiFetch('/api/ventas', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify(saleData)
+       });
+
 
       if (res.ok) {
         alert('Venta realizada correctamente!');

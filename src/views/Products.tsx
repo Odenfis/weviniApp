@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { apiFetch } from '../lib/api';
 
 interface Unit {
   id_unidad: number;
@@ -71,9 +72,9 @@ export default function Products() {
     setLoading(true);
     try {
       const [prodRes, unitRes, classRes] = await Promise.all([
-        fetch('http://localhost:3001/api/productos?all=true'),
-        fetch('http://localhost:3001/api/unidades'),
-        fetch('http://localhost:3001/api/clases')
+        apiFetch('http://localhost:3001/api/productos?all=true'),
+        apiFetch('http://localhost:3001/api/unidades'),
+        apiFetch('http://localhost:3001/api/clases')
       ]);
       setProducts(await prodRes.json());
       setUnits(await unitRes.json());
@@ -87,7 +88,7 @@ export default function Products() {
 
   const fetchPrices = async (id: number) => {
     try {
-      const res = await fetch(`http://localhost:3001/api/productos/${id}/precios`);
+      const res = await apiFetch(`http://localhost:3001/api/productos/${id}/precios`);
       setProductPrices(await res.json());
     } catch (err) {
       console.error('Error fetching prices:', err);
@@ -113,12 +114,12 @@ export default function Products() {
         : 'http://localhost:3001/api/productos';
       const method = editingProduct ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productData),
       });
-
+ 
       if (res.ok) {
         await fetchInitialData();
         setIsModalOpen(false);
@@ -126,6 +127,7 @@ export default function Products() {
         const errData = await res.json();
         alert(errData.detail || 'Error al guardar el producto');
       }
+
     } catch (err) {
       alert('Error de conexión con el servidor');
     }

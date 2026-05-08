@@ -15,6 +15,40 @@ app.use(express.json());
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
+// Middleware para validar licencia
+const checkLicense = async (req, res, next) => {
+    // No bloquear rutas de salud o login
+    if (req.path === '/health' || req.path === '/api/login') {
+        return next();
+    }
+
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query('SELECT TOP 1 fecha_caducidad, activo FROM licencia ORDER BY id DESC');
+        const license = result.recordset[0];
+
+        if (!license || !license.activo) {
+            return res.status(403).json({ message: 'LICENSE_EXPIRED', detail: 'La licencia del sistema no está activa.' });
+        }
+
+        const expirationDate = new Date(license.fecha_caducidad);
+        const today = new Date();
+
+        if (today > expirationDate) {
+            return res.status(403).json({ message: 'LICENSE_EXPIRED', detail: 'La licencia del sistema ha caducado.' });
+        }
+
+        next();
+    } catch (err) {
+        console.error('Error validating license:', err);
+        // En caso de error de DB, permitimos el paso para no bloquear la app por fallos técnicos, 
+        // pero podrías cambiarlo a res.status(500) si prefieres seguridad total.
+        next();
+    }
+};
+
+app.use(checkLicense);
+
 app.get('/health', (req, res) => {
     res.json({ status: 'OK' });
 });

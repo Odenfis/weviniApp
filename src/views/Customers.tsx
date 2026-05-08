@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { apiFetch } from '../lib/api';
 
 interface Customer {
   id_cliente: number;
@@ -47,7 +48,7 @@ export default function Customers() {
   const fetchCustomers = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/clientes?all=true');
+      const res = await apiFetch('http://localhost:3001/api/clientes?all=true');
       setCustomers(await res.json());
     } catch (err) {
       console.error('Error fetching customers:', err);
@@ -63,7 +64,7 @@ export default function Customers() {
 
   const openCreateModal = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/clientes/next-code');
+      const res = await apiFetch('http://localhost:3001/api/clientes/next-code');
       const { nextCode } = await res.json();
       setNextCode(nextCode.toString());
     } catch (err) {
@@ -81,12 +82,12 @@ export default function Customers() {
         : 'http://localhost:3001/api/clientes';
       const method = editingCustomer ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(customerData),
       });
-
+ 
       if (res.ok) {
         await fetchCustomers();
         setIsModalOpen(false);
@@ -94,6 +95,7 @@ export default function Customers() {
         const errData = await res.json();
         alert(errData.detail || 'Error al guardar el cliente');
       }
+
     } catch (err) {
       alert('Error de conexión con el servidor');
     }

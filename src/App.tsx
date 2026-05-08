@@ -9,10 +9,12 @@ import Suppliers from './views/Suppliers';
 import POS from './views/POS';
 import Catalog from './views/Catalog';
 import Login from './views/Login';
+import LicenseLock from './components/LicenseLock';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [user, setUser] = useState(null);
+  const [isLicenseExpired, setIsLicenseExpired] = useState(false);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -20,6 +22,13 @@ export default function App() {
     if (savedUser && token) {
       setUser(JSON.parse(savedUser));
     }
+
+    const handleLicenseExpired = () => {
+      setIsLicenseExpired(true);
+    };
+
+    window.addEventListener('license-expired', handleLicenseExpired);
+    return () => window.removeEventListener('license-expired', handleLicenseExpired);
   }, []);
 
   const handleLoginSuccess = (userData: any) => {
@@ -31,6 +40,10 @@ export default function App() {
     localStorage.removeItem('user');
     setUser(null);
   };
+
+  if (isLicenseExpired) {
+    return <LicenseLock />;
+  }
 
   if (!user) {
     return <Login onLoginSuccess={handleLoginSuccess} />;

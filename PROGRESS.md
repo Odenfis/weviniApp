@@ -181,6 +181,20 @@ This file serves as the official record of the project's evolution, technical de
     - **Dynamic Payment Lock:** Implemented an intelligent "Realizar Pago" button that dynamically updates its text to inform the user of the exact blocking reason (Client, Warehouse, Stock, or Missing Units).
     - **Input Precision:** Corrected unit calculation logic to handle `0` values correctly, preventing unexpected fallbacks during manual entry.
 
+### Phase 20: Inventory Visualization & License Control System
+- **Stock View Enhancements (Mixed-Unit Visibility):**
+    - Implemented a minimal switch in the "UNIDAD" column of the Inventory view.
+    - Added logic to convert stock to a mixed format (Planchas and Units, 1 plancha = 30 units) for better physical count verification.
+    - Created a per-product toggle state to switch between "Unidades" and "Planchas" views without affecting the database.
+- **License Control System Implementation:**
+    - **Database Architecture:** Defined a `licencia` table to store expiration dates and active status.
+    - **Backend Security (Middleware):** Developed a server-side middleware that intercepts all API requests to validate the license status. If the license is expired or inactive, it returns a `403 Forbidden (LICENSE_EXPIRED)` response.
+    - **Frontend Guard (Intercept & Block):**
+        - Implemented a custom `apiFetch` wrapper that detects license expiration across the entire application.
+        - Built a high-fidelity `LicenseLock` component that renders a professional full-screen lock when access is denied, matching the corporate design specifications.
+        - Integrated the lock mechanism into `App.tsx` as a top-level guard.
+    - **Application-wide Integration:** Refactored all views (`POS`, `Products`, `Customers`, `Suppliers`, `Inventory`, `Login`) to use the centralized `apiFetch` for unified security.
+
 ## 📅 Next Steps (Roadmap)
 - [ ] Implement Product Categories and Lines management.
 - [ ] Build the Dashboard with key metrics.

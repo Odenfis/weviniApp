@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
+import { apiFetch } from '../lib/api';
 
 interface InventoryItem {
   id_saldo: number;
@@ -30,15 +31,30 @@ export default function Inventory() {
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [adjustmentValue, setAdjustmentValue] = useState<string>('0');
   const [operation, setOperation] = useState<'add' | 'subtract'>('add');
+  const [planchaView, setPlanchaView] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     fetchInventory();
   }, []);
 
+  const togglePlanchaView = (id: number) => {
+    setPlanchaView(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  const formatStock = (stock: number, usePlanchas: boolean) => {
+    if (!usePlanchas) return stock.toFixed(0);
+    const planchas = Math.floor(stock / 30);
+    const unidades = Math.round(stock % 30);
+    return `${planchas} pl, ${unidades} und`;
+  };
+
   const fetchInventory = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/saldos');
+      const res = await apiFetch('http://localhost:3001/api/saldos');
       const data = await res.json();
       setInventory(data);
     } catch (err) {
@@ -62,7 +78,7 @@ export default function Inventory() {
     const finalAdjustment = operation === 'add' ? value : -value;
 
     try {
-      const res = await fetch(`http://localhost:3001/api/saldos/${editingItem.id_saldo}`, {
+      const res = await apiFetch(`http://localhost:3001/api/saldos/${editingItem.id_saldo}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ajuste_stock: finalAdjustment }),
@@ -129,8 +145,23 @@ export default function Inventory() {
                    <tr key={item.id_saldo} className="hover:bg-primary hover:text-bg-main transition-all group">
                       <td className="px-6 py-6 font-bold text-lg">{item.producto_nombre || 'N/A'}</td>
                      <td className="px-6 py-6 text-sm uppercase opacity-60 group-hover:opacity-100">{item.almacen_nombre || 'N/A'}</td>
-                      <td className="px-6 py-6 text-sm uppercase font-bold text-orange-600 group-hover:opacity-100">{item.unidad || '---'}</td>
-                       <td className="px-6 py-6 text-right font-black text-xl text-orange-600">{item.stock_actual.toFixed(0)}</td>
+                       <td className="px-6 py-6">
+                         <button 
+                           onClick={() => togglePlanchaView(item.id_saldo)}
+                           className={cn(
+                             "text-xs uppercase font-bold px-2 py-1 rounded transition-all border",
+                             planchaView[item.id_saldo] 
+                               ? "bg-orange-600 text-bg-main border-orange-600" 
+                               : "text-orange-600 border-orange-600/30 hover:bg-orange-600/10"
+                           )}
+                         >
+                           {planchaView[item.id_saldo] ? 'Planchas' : (item.unidad || 'Unidades')}
+                         </button>
+                       </td>
+                        <td className="px-6 py-6 text-right font-black text-xl text-orange-600">
+                          {formatStock(item.stock_actual, planchaView[item.id_saldo])}
+                        </td>
+
                       <td className="px-6 py-6 text-right font-bold text-xl">{item.stock_reservado.toFixed(2)}</td>
                       <td className="px-6 py-6 text-right font-bold text-xl">${item.costo_promedio.toFixed(2)}</td>
                       <td className="px-6 py-6 text-center">
