@@ -205,6 +205,13 @@ This file serves as the official record of the project's evolution, technical de
     - **UX/UI:** Added a dedicated "Cargar IGV" switch in the ticket configuration area, deactivated by default.
     - **Logic:** Integrated real-time total recalculation based on the tax toggle state, allowing for both tax-inclusive and tax-exclusive sales.
 
+### Phase 22: POS Dynamic Configuration & Catalog Integration
+- **Dynamic Payment Methods:**
+    - **Backend:** Created a generic endpoint `GET /api/tablas/:codtabla` to retrieve configuration catalogs from the `Tablas` table.
+    - **Integration:** Linked the "Tipo Pago" selector in the POS to the `Tablas` table (`n_codtabla = 5`).
+    - **Ordering:** Implemented strict sorting by `n_numero` to maintain the operational order defined in the database.
+    - **Flexibility:** Eliminated hardcoded payment options, allowing new methods (e.g., YAPE, Transferencia) to appear automatically upon database update.
+
 ## 📅 Next Steps (Roadmap)
 - [ ] Implement Product Categories and Lines management.
 - [ ] Build the Dashboard with key metrics.
