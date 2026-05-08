@@ -270,6 +270,7 @@ export default function POS() {
         });
       });
 
+      const isPaidMethod = [1, 2, 3].includes(saleType);
       const saleData = {
         id_cliente: selectedCustomer.id_cliente,
         id_almacen: selectedWarehouse.id_almacen,
@@ -280,9 +281,9 @@ export default function POS() {
         descuento: 0,
         igv: igv,
         total: total,
-        monto_pagado: saleType === 1 ? total : 0,
-        saldo: saleType === 2 ? total : 0,
-        estado: saleType === 1 ? 'PAGADO' : 'PENDIENTE',
+        monto_pagado: isPaidMethod ? total : 0,
+        saldo: isPaidMethod ? 0 : total,
+        estado: isPaidMethod ? 'PAGADO' : 'PENDIENTE',
         observaciones: observations,
         detalles: saleDetails
       };

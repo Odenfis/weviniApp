@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -11,6 +11,7 @@ import {
   CircleAlert
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { apiFetch } from '../lib/api';
 import {
   AreaChart,
   Area,
@@ -41,12 +42,29 @@ const inventoryData = [
 ];
 
 export default function Dashboard() {
+  const [recentSales, setRecentSales] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchRecentSales = async () => {
+      try {
+        const res = await apiFetch('/api/ventas/recent');
+        if (res.ok) {
+          const data = await res.json();
+          setRecentSales(data);
+        }
+      } catch (err) {
+        console.error('Error fetching recent sales:', err);
+      }
+    };
+    fetchRecentSales();
+  }, []);
+
   return (
     <div className="p-12 space-y-12 animate-in fade-in duration-700 bg-bg-main min-h-full">
       <div className="flex justify-between items-end pb-8 border-b border-text-main/10">
         <div>
-          <span className="text-[10px] tracking-[0.4em] font-bold uppercase mb-2 block opacity-50">Resumen operativo — Abril 2026</span>
-           <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black text-text-main leading-tight tracking-tighter">Resumen General</h1>
+          <span className="text-[10px] tracking-[0.4em] font-bold uppercase mb-2 block opacity-50">Resumen operativo — Mayo 2026</span>
+          <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black text-text-main leading-tight tracking-tighter">Resumen General</h1>
         </div>
         <button className="flex items-center gap-4 px-6 py-3 border border-text-main text-text-main rounded-full text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-primary hover:text-bg-main transition-all">
           <Download className="w-3 h-3" />
@@ -93,7 +111,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2 border-t border-text-main/10 pt-10">
           <div className="flex justify-between items-baseline mb-12">
-             <h3 className="text-2xl font-bold text-text-main">Sales Trends.</h3>
+            <h3 className="text-2xl font-bold text-text-main">Sales Trends.</h3>
             <div className="flex items-center gap-2 border-b border-text-main pb-1">
               <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Metric:</span>
               <select className="text-[10px] font-bold uppercase tracking-widest bg-transparent border-none focus:ring-0 p-0 cursor-pointer">
@@ -127,7 +145,7 @@ export default function Dashboard() {
         </div>
 
         <div className="border-l border-text-main/10 pl-10">
-           <h3 className="text-2xl font-bold text-text-main mb-12">Distribution.</h3>
+          <h3 className="text-2xl font-bold text-text-main mb-12">Distribution.</h3>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -159,7 +177,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="h-[1px] w-12 bg-text-main/10 group-hover:w-24 transition-all"></div>
-                   <span className="text-xs font-bold">{item.value}%</span>
+                  <span className="text-xs font-bold">{item.value}%</span>
                 </div>
               </div>
             ))}
@@ -167,29 +185,48 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="pt-20">
+      <div className="pt-10">
         <div className="flex justify-between items-baseline mb-12">
-           <h3 className="text-4xl font-bold text-text-main">Recent Orders.</h3>
+          <h3 className="text-4xl font-bold text-text-main">Ventas Recientes.</h3>
           <button className="text-[10px] font-bold uppercase tracking-[0.3em] flex items-center gap-2 border-b border-text-main">
             Archive View <ArrowRight className="w-3 h-3" />
           </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="border-b border-text-main/10 text-[9px] font-bold uppercase tracking-[0.3em] opacity-40">
+            <thead className="border-b border-text-main/10 text-xs font-bold uppercase tracking-[0.3em] opacity-40">
               <tr>
-                <th className="px-6 py-4">Serial No.</th>
-                <th className="px-6 py-4">Client Entity</th>
-                <th className="px-6 py-4">Timestamp</th>
-                <th className="px-6 py-4">Volume Output</th>
-                <th className="px-6 py-4 text-right">Processing</th>
+                <th className="px-6 py-4">ID Venta</th>
+                <th className="px-6 py-4">Cliente</th>
+                <th className="px-6 py-4">Fecha</th>
+                <th className="px-6 py-4">Total</th>
+                <th className="px-6 py-4 text-right">Estado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-text-main/5">
-              <OrderRow id="ORD-9082" client="Distribuidora Los Andes" date="Apr 23, 08:30" qty="1,200 PLATES (ROSADO)" status="In Transit" />
-              <OrderRow id="ORD-9081" client="Supermercados Central" date="Apr 22, 14:15" qty="850 PLATES (PARDO)" status="Delivered" />
-              <OrderRow id="ORD-9080" client="Mercado Mayorista Lima" date="Apr 21, 09:00" qty="3,000 PLATES (MIXTO)" status="Delivered" />
-              <OrderRow id="ORD-9079" client="Panadería San José" date="Apr 20, 16:45" qty="150 PLATES (ROSADO)" status="Pending" />
+              {recentSales.length > 0 ? (
+                recentSales.map((sale) => (
+                  <OrderRow
+                    key={sale.id_venta}
+                    id={sale.id_venta}
+                    client={sale.razon_social}
+                    date={new Date(sale.fecha_venta).toLocaleString('es-PE', {
+                      month: 'short',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                    qty={`S/ ${sale.total.toFixed(2)}`}
+                    status={sale.estado}
+                  />
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-xs opacity-40 font-bold uppercase tracking-widest">
+                    No hay ventas recientes registradas
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -209,7 +246,7 @@ function MetricCard({ title, value, unit, trend, positive, icon: Icon, alert }: 
         <span className="text-[8px] font-bold tracking-widest opacity-30">{unit}</span>
       </div>
       <div>
-         <span className={cn("text-3xl font-bold tracking-tighter", alert ? "text-error" : "text-text-main")}>{value}</span>
+        <span className={cn("text-3xl font-bold tracking-tighter", alert ? "text-error" : "text-text-main")}>{value}</span>
       </div>
       <div className={cn(
         "text-[9px] font-bold uppercase tracking-widest opacity-60 flex items-center gap-2"
@@ -222,17 +259,25 @@ function MetricCard({ title, value, unit, trend, positive, icon: Icon, alert }: 
 }
 
 function OrderRow({ id, client, date, qty, status }: any) {
+  const isPaid = status?.toUpperCase() === 'PAGADO';
+  
   return (
     <tr className="hover:bg-primary hover:text-bg-main transition-all cursor-pointer group">
-      <td className="px-6 py-6 font-bold text-[10px] tracking-widest uppercase">{id}</td>
-       <td className="px-6 py-6 text-sm font-medium">{client}</td>
-      <td className="px-6 py-6 text-[10px] opacity-50 uppercase tracking-widest">{date}</td>
-      <td className="px-6 py-6 text-[10px] font-bold tracking-widest">{qty}</td>
+      <td className="px-6 py-6 font-bold text-xs tracking-widest uppercase">#{id}</td>
+      <td className="px-6 py-6 text-sm font-medium">{client}</td>
+      <td className="px-6 py-6 text-xs opacity-50 uppercase tracking-widest">{date}</td>
+      <td className="px-6 py-6 text-sm font-bold tracking-widest">{qty}</td>
       <td className="px-6 py-6 text-right">
-        <span className="text-[9px] font-bold uppercase tracking-[0.3em] border border-current px-3 py-1 rounded-full group-hover:border-bg-main">
+        <span className={cn(
+          "text-[11px] font-bold uppercase tracking-[0.3em] border px-3 py-1 rounded-full transition-all",
+          isPaid
+            ? "border-success text-success group-hover:border-bg-main group-hover:text-bg-main"
+            : "border-text-main/30 text-text-main/60 group-hover:border-bg-main group-hover:text-bg-main"
+        )}>
           {status}
         </span>
       </td>
     </tr>
   );
 }
+

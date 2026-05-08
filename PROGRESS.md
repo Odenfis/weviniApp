@@ -212,7 +212,24 @@ This file serves as the official record of the project's evolution, technical de
     - **Ordering:** Implemented strict sorting by `n_numero` to maintain the operational order defined in the database.
     - **Flexibility:** Eliminated hardcoded payment options, allowing new methods (e.g., YAPE, Transferencia) to appear automatically upon database update.
 
+### Phase 23: POS Payment Status Logic Optimization
+- **Payment State Validation:**
+    - Implemented a dynamic validation system to correctly assign the 'PAGADO' state to multiple immediate payment methods (CONTADO, YAPE, TRANSFERENCIA).
+    - Fixed a bug where YAPE payments were incorrectly treated as credit sales.
+    - Synchronized `monto_pagado` and `saldo` calculations to ensure financial consistency based on the selected payment method.
+    - Transitioned from hardcoded ID checks to a scalable list of immediate payment methods.
+
+### Phase 24: Dashboard Operational Insights
+- **Recent Sales Implementation:**
+    - Developed a specialized Stored Procedure `usp_Ventas_GetRecent` to fetch the last 5 transactions with client details.
+    - Integrated a new backend endpoint `GET /api/ventas/recent` for real-time data retrieval.
+    - Transformed the Dashboard "Recent Orders" section from static mock data to a dynamic table.
+    - Implemented semantic state badges (PAGADO vs PENDIENTE) and professional currency/date formatting.
+- **Visual Refinements:**
+    - Optimized vertical spacing by reducing top padding for the sales report section.
+    - Increased typographical hierarchy in the recent sales table (headers, ID, totals, and status badges) to enhance visual presence and legibility.
+
 ## 📅 Next Steps (Roadmap)
 - [ ] Implement Product Categories and Lines management.
-- [ ] Build the Dashboard with key metrics.
+- [ ] Build the Dashboard with key metrics (Revenue, Volume, etc.).
 - [ ] Implement Role-Based Access Control (RBAC) for 'Administrador' vs 'Operador'.

@@ -520,6 +520,16 @@ app.get('/api/ventas/next-doc', async (req, res) => {
     }
 });
 
+app.get('/api/ventas/recent', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().execute('usp_Ventas_GetRecent');
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ message: 'Error al obtener ventas recientes', detail: err.message });
+    }
+});
+
 app.post('/api/ventas', async (req, res) => {
     const v = req.body;
     try {

@@ -153,3 +153,22 @@ BEGIN
     EXEC sp_executesql @sql;
 END
 GO
+
+-- 6. Get Recent Sales for Dashboard
+-- Expected columns: id_venta, razon_social, fecha_venta, total, estado
+CREATE OR ALTER PROCEDURE [dbo].[usp_Ventas_GetRecent]
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT TOP 5 
+        v.id_venta, 
+        c.razon_social, 
+        v.fecha_venta, 
+        v.total, 
+        v.estado
+    FROM [dbo].[fact_ventas] v
+    JOIN [dbo].[dim_clientes] c ON v.id_cliente = c.id_cliente
+    ORDER BY v.fecha_venta DESC;
+END
+GO
+
