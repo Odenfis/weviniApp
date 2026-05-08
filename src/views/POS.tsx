@@ -24,6 +24,7 @@ export default function POS() {
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [saldos, setSaldos] = useState<any[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -31,6 +32,7 @@ export default function POS() {
   const [docType, setDocType] = useState(1); // 1: Boleta, 2: Factura
   const [saleType, setSaleType] = useState(1); // 1: Contado, 2: Crédito
   const [observations, setObservations] = useState('');
+  const [isTaxEnabled, setIsTaxEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [pendingProduct, setPendingProduct] = useState<any>(null);
@@ -76,18 +78,29 @@ export default function POS() {
         console.error('❌ Error cargando Clientes:', err);
       }
  
-      // 4. Carga de Saldos
-      try {
-        const salRes = await apiFetch('/api/saldos').then(res => {
-          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-          return res.json();
-        });
-        setSaldos(Array.isArray(salRes) ? salRes : []);
-      } catch (err) {
-        console.error('❌ Error cargando Saldos:', err);
-      }
-
-    } catch (err) {
+       // 4. Carga de Saldos
+       try {
+         const salRes = await apiFetch('/api/saldos').then(res => {
+           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+           return res.json();
+         });
+         setSaldos(Array.isArray(salRes) ? salRes : []);
+       } catch (err) {
+         console.error('❌ Error cargando Saldos:', err);
+       }
+  
+       // 5. Carga de Formas de Pago (Tabla 5)
+       try {
+         const payRes = await apiFetch('/api/tablas/5').then(res => {
+           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+           return res.json();
+         });
+         setPaymentMethods(Array.isArray(payRes) ? payRes : []);
+       } catch (err) {
+         console.error('❌ Error cargando Formas de Pago:', err);
+       }
+ 
+     } catch (err) {
       console.error('❌ Error crítico en loadInitialData:', err);
     } finally {
       setLoading(false);
@@ -201,7 +214,7 @@ export default function POS() {
   };
 
   const subtotal = cart.reduce((acc, item) => acc + calculateItemTotal(item), 0);
-  const igv = subtotal * 0.18;
+  const igv = isTaxEnabled ? subtotal * 0.18 : 0;
   const total = subtotal + igv;
 
   const finalizeSale = async () => {
@@ -339,7 +352,6 @@ export default function POS() {
                 </select>
               </div>
 
-
               <div className="relative">
                 <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Seleccione Almacén</span>
                 <select
@@ -354,36 +366,63 @@ export default function POS() {
                 </select>
               </div>
 
-            </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="relative">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Tipo Documento</span>
+                  <select
+                    className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg appearance-none bg-transparent focus:outline-none focus:border-primary text-text-main"
+                    value={docType}
+                    onChange={(e) => setDocType(parseInt(e.target.value))}
+                  >
+                    <option value={1}>Boleta</option>
+                    <option value={2}>Factura</option>
+                  </select>
+                </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div className="relative">
-                <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Tipo Documento</span>
-                <select
-                  className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg appearance-none bg-transparent focus:outline-none focus:border-primary text-text-main"
-                  value={docType}
-                  onChange={(e) => setDocType(parseInt(e.target.value))}
-                >
-                  <option value={1}>Boleta</option>
-                  <option value={2}>Factura</option>
-                </select>
+               <div className="relative">
+                 <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Tipo Pago</span>
+                 <select
+                   className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg appearance-none bg-transparent focus:outline-none focus:border-primary text-text-main"
+                   value={saleType}
+                   onChange={(e) => setSaleType(parseInt(e.target.value))}
+                 >
+                   {paymentMethods.length > 0 ? (
+                     paymentMethods.map(method => (
+                       <option key={method.n_numero} value={method.n_numero}>
+                         {method.c_describe}
+                       </option>
+                     ))
+                   ) : (
+                     <>
+                       <option value={1}>Contado</option>
+                       <option value={2}>Crédito</option>
+                     </>
+                   )}
+                 </select>
+               </div>
               </div>
-
-              <div className="relative">
-                <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Tipo Pago</span>
-                <select
-                  className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg appearance-none bg-transparent focus:outline-none focus:border-primary text-text-main"
-                  value={saleType}
-                  onChange={(e) => setSaleType(parseInt(e.target.value))}
-                >
-                  <option value={1}>Contado</option>
-                  <option value={2}>Crédito</option>
-                </select>
-              </div>
-
             </div>
-
-            <div className="relative">
+ 
+            <div className="flex items-center justify-between p-3 border border-text-main/10 rounded-lg bg-white/50 mt-2">
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black uppercase tracking-widest text-text-main">Cargar IGV (18%)</span>
+                <span className="text-[8px] opacity-40 font-medium">Activar impuesto sobre la venta</span>
+              </div>
+              <button 
+                onClick={() => setIsTaxEnabled(!isTaxEnabled)}
+                className={cn(
+                  "relative w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none",
+                  isTaxEnabled ? "bg-primary" : "bg-text-main/20"
+                )}
+              >
+                <motion.div 
+                  animate={{ x: isTaxEnabled ? 20 : 2 }}
+                  className="absolute top-1 w-3 h-3 bg-bg-main rounded-full shadow-sm" 
+                />
+              </button>
+            </div>
+ 
+            <div className="relative mt-2">
               <span className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Observaciones</span>
                <textarea
                  className="w-full p-2 text-xs font-bold uppercase tracking-widest border border-text-main/10 rounded-lg bg-transparent focus:outline-none focus:border-primary resize-none text-text-main"

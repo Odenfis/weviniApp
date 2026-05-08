@@ -482,13 +482,13 @@ function ProductModal({ product, units, classes, prices, onClose, onSave, onPric
           >
             Cancelar
           </button>
-          <button
-            onClick={() => onSave(formData)}
-            className="flex items-center gap-3 px-8 py-2 bg-primary text-bg-main rounded-full text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-lg"
-          >
-            <Save className="w-3 h-3" />
-            Guardar Producto
-          </button>
+            <button
+              onClick={() => onSave({ ...formData, prices: localPrices })}
+              className="flex items-center gap-3 px-8 py-2 bg-primary text-bg-main rounded-full text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-lg"
+            >
+              <Save className="w-3 h-3" />
+              Guardar Producto
+            </button>
         </div>
       </motion.div>
     </div>

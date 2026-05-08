@@ -195,6 +195,16 @@ This file serves as the official record of the project's evolution, technical de
         - Integrated the lock mechanism into `App.tsx` as a top-level guard.
     - **Application-wide Integration:** Refactored all views (`POS`, `Products`, `Customers`, `Suppliers`, `Inventory`, `Login`) to use the centralized `apiFetch` for unified security.
 
+### Phase 21: Advanced Product Management & POS Fiscal Control
+- **Product Price Synchronization:**
+    - **Backend:** Implemented full synchronization of product prices in `PUT /api/productos/:id` (delete orphans, update existing, insert new).
+    - **Backend:** Integrated price insertion in `POST /api/productos` to ensure new products are created with their respective price presentations.
+    - **Frontend:** Updated the product edit modal to send the complete price list during save operations.
+- **POS IGV (Tax) Control:**
+    - **Functional Requirement:** Implemented the ability to toggle the IGV (18%) tax in the POS.
+    - **UX/UI:** Added a dedicated "Cargar IGV" switch in the ticket configuration area, deactivated by default.
+    - **Logic:** Integrated real-time total recalculation based on the tax toggle state, allowing for both tax-inclusive and tax-exclusive sales.
+
 ## 📅 Next Steps (Roadmap)
 - [ ] Implement Product Categories and Lines management.
 - [ ] Build the Dashboard with key metrics.

@@ -76,13 +76,25 @@ app.get('/api/almacenes', async (req, res) => {
 });
 
 app.get('/api/clases', async (req, res) => {
-
     try {
         const pool = await poolPromise;
         const result = await pool.request().execute('usp_Clases_Get');
         res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ message: 'Error al obtener clases', detail: err.message });
+    }
+});
+
+app.get('/api/tablas/:codtabla', async (req, res) => {
+    const { codtabla } = req.params;
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('codtabla', sql.Int, codtabla)
+            .query('SELECT n_numero, c_describe FROM Tablas WHERE n_codtabla = @codtabla ORDER BY n_numero');
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ message: 'Error al obtener datos de tabla', detail: err.message });
     }
 });
 
@@ -294,7 +306,9 @@ app.post('/api/productos', async (req, res) => {
     const p = req.body;
     try {
         const pool = await poolPromise;
-        await pool.request()
+        
+        // 1. Insertar producto
+        const result = await pool.request()
             .input('id_clase', sql.Int, p.id_clase)
             .input('codigo', sql.VarChar, p.codigo)
             .input('nombre', sql.VarChar, p.nombre)
@@ -309,6 +323,27 @@ app.post('/api/productos', async (req, res) => {
             .input('stock_minimo', sql.Decimal(12, 4), p.stock_minimo)
             .input('activo', sql.Int, p.activo ?? 1)
             .execute('usp_Productos_Insert');
+
+        // Nota: Asumimos que usp_Productos_Insert no devuelve el ID, 
+        // pero necesitamos el ID del producto recién creado para los precios.
+        // Intentamos obtener el ID del producto recién creado por código (ya que es único).
+        const prodRes = await pool.request()
+            .input('codigo', sql.VarChar, p.codigo)
+            .query('SELECT id_producto FROM dim_productos WHERE codigo = @codigo');
+        
+        const id_producto = prodRes.recordset[0]?.id_producto;
+
+        if (id_producto && p.prices && Array.isArray(p.prices)) {
+            for (const pr of p.prices) {
+                await pool.request()
+                    .input('id_prod', sql.Int, id_producto)
+                    .input('pres', sql.VarChar, pr.presentacion)
+                    .input('cant', sql.Decimal(10, 4), pr.cantidad_base)
+                    .input('precio', sql.Decimal(10, 4), pr.precio_venta)
+                    .execute('usp_Precios_Insert');
+            }
+        }
+
         res.status(201).json({ message: 'Producto creado exitosamente' });
     } catch (err) {
         res.status(500).json({ message: 'Error al crear producto', detail: err.message });
@@ -320,6 +355,8 @@ app.put('/api/productos/:id', async (req, res) => {
     const p = req.body;
     try {
         const pool = await poolPromise;
+        
+        // 1. Actualizar datos básicos del producto
         await pool.request()
             .input('id', sql.Int, id)
             .input('id_clase', sql.Int, p.id_clase)
@@ -336,7 +373,49 @@ app.put('/api/productos/:id', async (req, res) => {
             .input('stock_minimo', sql.Decimal(12, 4), p.stock_minimo)
             .input('activo', sql.Int, p.activo)
             .execute('usp_Productos_Update');
-        res.json({ message: 'Producto actualizado exitosamente' });
+
+        // 2. Sincronizar Presentaciones de Precio
+        if (p.prices && Array.isArray(p.prices)) {
+            // Obtener precios actuales para saber cuáles eliminar
+            const currentPricesRes = await pool.request()
+                .input('id_prod', sql.Int, id)
+                .execute('usp_Precios_GetByProd');
+            
+            const currentPrices = currentPricesRes.recordset;
+            const incomingPrices = p.prices;
+
+            // Eliminar los que ya no vienen en la request
+            for (const cp of currentPrices) {
+                if (!incomingPrices.find(ip => ip.id_precio === cp.id_precio)) {
+                    await pool.request()
+                        .input('id', sql.Int, cp.id_precio)
+                        .execute('usp_Precios_Delete');
+                }
+            }
+
+            // Insertar o Actualizar
+            for (const pr of incomingPrices) {
+                if (pr.id_precio && pr.id_precio !== 0) {
+                    // Actualizar
+                    await pool.request()
+                        .input('id', sql.Int, pr.id_precio)
+                        .input('pres', sql.VarChar, pr.presentacion)
+                        .input('cant', sql.Decimal(10, 4), pr.cantidad_base)
+                        .input('precio', sql.Decimal(10, 4), pr.precio_venta)
+                        .execute('usp_Precios_Update');
+                } else {
+                    // Insertar
+                    await pool.request()
+                        .input('id_prod', sql.Int, id)
+                        .input('pres', sql.VarChar, pr.presentacion)
+                        .input('cant', sql.Decimal(10, 4), pr.cantidad_base)
+                        .input('precio', sql.Decimal(10, 4), pr.precio_venta)
+                        .execute('usp_Precios_Insert');
+                }
+            }
+        }
+
+        res.json({ message: 'Producto y sus presentaciones actualizados exitosamente' });
     } catch (err) {
         res.status(500).json({ message: 'Error al actualizar producto', detail: err.message });
     }
