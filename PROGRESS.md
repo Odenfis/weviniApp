@@ -229,6 +229,13 @@ This file serves as the official record of the project's evolution, technical de
     - Optimized vertical spacing by reducing top padding for the sales report section.
     - Increased typographical hierarchy in the recent sales table (headers, ID, totals, and status badges) to enhance visual presence and legibility.
 
+### Phase 25: POS Mixed Payment Distribution
+- **Mixed Payment Support:**
+    - Implemented the ability to handle mixed payment types in the POS.
+    - Added functionality to distribute specific amounts to different payment methods (e.g., 'CONTADO' and 'YAPE') when a mixed payment is selected.
+    - Implemented real-time validation to ensure the sum of distributed amounts matches the total transaction amount.
+    - Updated the transaction logic to correctly record the breakdown of multiple payment methods in the database.
+
 ## 📅 Next Steps (Roadmap)
 - [ ] Implement Product Categories and Lines management.
 - [ ] Build the Dashboard with key metrics (Revenue, Volume, etc.).

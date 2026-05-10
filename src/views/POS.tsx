@@ -35,6 +35,8 @@ export default function POS() {
   const [isTaxEnabled, setIsTaxEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showPriceModal, setShowPriceModal] = useState(false);
+  const [showMixedPaymentModal, setShowMixedPaymentModal] = useState(false);
+  const [mixedPayment, setMixedPayment] = useState({ contado: '', yape: '' });
   const [pendingProduct, setPendingProduct] = useState<any>(null);
   const [presentations, setPresentations] = useState<any[]>([]);
 
@@ -217,7 +219,7 @@ export default function POS() {
   const igv = isTaxEnabled ? subtotal * 0.18 : 0;
   const total = subtotal + igv;
 
-  const finalizeSale = async () => {
+  const executeSale = async (paymentDetails?: any) => {
     if (!selectedCustomer || !selectedWarehouse) {
       alert('Please select a customer and warehouse');
       return;
@@ -226,26 +228,25 @@ export default function POS() {
     try {
       // Stock check for confirmation
       let insufficientStock = false;
-       cart.forEach(item => {
-         if (isStockInsufficient(item, selectedWarehouse, cart)) {
-           insufficientStock = true;
-         }
-       });
-
-        if (insufficientStock) {
-          alert("❌ ERROR: FALTA DE SALDOS\nAlgunos productos no tienen stock suficiente en el almacén seleccionado. La venta ha sido bloqueada.");
-          return;
+      cart.forEach(item => {
+        if (isStockInsufficient(item, selectedWarehouse, cart)) {
+          insufficientStock = true;
         }
- 
-        if (cart.some(item => item.unidades === 0)) {
-          const missingUnitsItem = cart.find(item => item.unidades === 0);
-          alert(`❌ ERROR: ESPECIFIQUE UNIDADES\nEl producto "${missingUnitsItem?.name}" no tiene cantidad de unidades especificada.`);
-          return;
-        }
- 
-        const docRes = await apiFetch('/api/ventas/next-doc').then(res => res.json());
-       const nextDoc = docRes.nextCode;
+      });
 
+      if (insufficientStock) {
+        alert("❌ ERROR: FALTA DE SALDOS\nAlgunos productos no tienen stock suficiente en el almacén seleccionado. La venta ha sido bloqueada.");
+        return;
+      }
+
+      if (cart.some(item => item.unidades === 0)) {
+        const missingUnitsItem = cart.find(item => item.unidades === 0);
+        alert(`❌ ERROR: ESPECIFIQUE UNIDADES\nEl producto "${missingUnitsItem?.name}" no tiene cantidad de unidades especificada.`);
+        return;
+      }
+
+      const docRes = await apiFetch('/api/ventas/next-doc').then(res => res.json());
+      const nextDoc = docRes.nextCode;
 
       const saleDetails: any[] = [];
 
@@ -270,7 +271,7 @@ export default function POS() {
         });
       });
 
-      const isPaidMethod = [1, 2, 3].includes(saleType);
+      const isPaidMethod = [1, 2, 3, 5].includes(saleType);
       const saleData = {
         id_cliente: selectedCustomer.id_cliente,
         id_almacen: selectedWarehouse.id_almacen,
@@ -285,15 +286,15 @@ export default function POS() {
         saldo: isPaidMethod ? 0 : total,
         estado: isPaidMethod ? 'PAGADO' : 'PENDIENTE',
         observaciones: observations,
-        detalles: saleDetails
+        detalles: saleDetails,
+        payment_details: paymentDetails || null
       };
 
-       const res = await apiFetch('/api/ventas', {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify(saleData)
-       });
-
+      const res = await apiFetch('/api/ventas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(saleData)
+      });
 
       if (res.ok) {
         alert('Venta realizada correctamente!');
@@ -301,13 +302,22 @@ export default function POS() {
         setSelectedCustomer(null);
         setSelectedWarehouse(null);
         setObservations('');
-        } else {
-          const err = await res.json();
-          alert(`Error: ${err.message}\n\nDetail: ${err.detail || 'N/A'}\nSQL Error: ${err.sqlError || 'N/A'}`);
-        }
+        setShowMixedPaymentModal(false);
+      } else {
+        const err = await res.json();
+        alert(`Error: ${err.message}\n\nDetail: ${err.detail || 'N/A'}\nSQL Error: ${err.sqlError || 'N/A'}`);
+      }
     } catch (err) {
       console.error('Sale error:', err);
       alert('An unexpected error occurred');
+    }
+  };
+
+  const finalizeSale = async () => {
+    if (saleType === 5) {
+      setShowMixedPaymentModal(true);
+    } else {
+      await executeSale();
     }
   };
 
@@ -562,6 +572,100 @@ export default function POS() {
                     </div>
                   </button>
                 ))}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {showMixedPaymentModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-text-main/20 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-bg-main border border-text-main/10 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-text-main/10 flex justify-between items-center">
+                <div>
+                  <h3 className="text-2xl font-bold text-text-main">Pago Mixto</h3>
+                  <p className="text-[10px] font-bold uppercase tracking-widest opacity-40">Distribución del Monto</p>
+                </div>
+                <button onClick={() => setShowMixedPaymentModal(false)} className="p-2 hover:bg-text-main/5 rounded-full transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-end">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Monto Contado</label>
+                    <button 
+                      onClick={() => setMixedPayment({ contado: total / 2, yape: total / 2 })}
+                      className="text-[8px] font-bold uppercase text-primary hover:underline mb-1"
+                    >
+                      Dividir 50/50
+                    </button>
+                  </div>
+                  <div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal"
+                      className="w-full p-3 text-lg font-bold border border-text-main/10 rounded-xl bg-transparent focus:outline-none focus:border-primary text-text-main"
+                      value={mixedPayment.contado === 0 ? '' : mixedPayment.contado}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setMixedPayment({ 
+                          contado: val, 
+                          yape: Math.max(0, total - val) 
+                        });
+                      }}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Monto Yape</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal"
+                      className="w-full p-3 text-lg font-bold border border-text-main/10 rounded-xl bg-transparent focus:outline-none focus:border-primary text-text-main"
+                      value={mixedPayment.yape === 0 ? '' : mixedPayment.yape}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setMixedPayment({ 
+                          yape: val, 
+                          contado: Math.max(0, total - val) 
+                        });
+                      }}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white/5 border border-text-main/10 space-y-2">
+                  <div className="flex justify-between text-xs font-bold uppercase tracking-widest opacity-60">
+                    <span>Suma Actual:</span>
+                    <span>S/ {(Number(mixedPayment.contado) + Number(mixedPayment.yape)).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
+                    <span>Total a Pagar:</span>
+                    <span>S/ {total.toFixed(2)}</span>
+                  </div>
+                  <div className={cn(
+                    "text-center text-[10px] font-black uppercase tracking-widest p-1 rounded-lg",
+                    (Number(mixedPayment.contado) + Number(mixedPayment.yape) === total) ? "bg-green-500/20 text-green-500" : "bg-error-500/20 text-error"
+                  )}>
+                    {(Number(mixedPayment.contado) + Number(mixedPayment.yape) === total) ? "✅ Monto Correcto" : `❌ Diferencia: S/ ${(total - (Number(mixedPayment.contado) + Number(mixedPayment.yape))).toFixed(2)}`}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => executeSale(mixedPayment)}
+                  disabled={(Number(mixedPayment.contado) + Number(mixedPayment.yape) !== total)}
+                  className="w-full py-4 bg-primary text-bg-main rounded-full text-[10px] font-black uppercase tracking-[0.4em] hover:opacity-90 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Confirmar Pago
+                </button>
               </div>
             </motion.div>
           </div>
