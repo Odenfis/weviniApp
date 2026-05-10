@@ -2,6 +2,7 @@
 -- Project: Wevini App - POS Implementation
 
 -- 1. Get all active presentations for a product
+-- UPDATED 2026-05-10: Changed to LEFT JOIN to ensure presentations without units are still visible in POS
 -- Expected columns: id_precio, id_producto, presentacion, cantidad_base, precio_venta, precio_compra, id_unidad, codigo_unidad
 CREATE OR ALTER PROCEDURE [dbo].[usp_Precios_GetByProd]
     @id_prod INT
@@ -19,14 +20,54 @@ BEGIN
         p.id_unidad,
         u.codigo AS codigo_unidad
     FROM [dbo].[dim_producto_precios] p
-    JOIN [dbo].[dim_unidades_medida] u ON p.id_unidad = u.id_unidad
+    LEFT JOIN [dbo].[dim_unidades_medida] u ON p.id_unidad = u.id_unidad
     WHERE p.id_producto = @id_prod AND p.activo = 1;
 END
 GO
 
+-- 1.1. Insert price presentation
+-- UPDATED 2026-05-10: Added @id_unidad support
+CREATE OR ALTER PROCEDURE [dbo].[usp_Precios_Insert]
+    @id_prod INT,
+    @nombre VARCHAR(100),
+    @pres VARCHAR(100),
+    @cant DECIMAL(10, 4),
+    @precio DECIMAL(10, 4),
+    @id_unidad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @new_id INT;
+    SELECT @new_id = ISNULL(MAX(id_precio), 0) + 1 FROM [dbo].[dim_producto_precios];
+
+    INSERT INTO [dbo].[dim_producto_precios] (id_precio, id_producto, Nombre, presentacion, cantidad_base, precio_venta, id_unidad) 
+    VALUES (@new_id, @id_prod, @nombre, @pres, @cant, @precio, @id_unidad);
+END
+GO
+
+-- 1.2. Update price presentation
+-- UPDATED 2026-05-10: Added @id_unidad support
+CREATE OR ALTER PROCEDURE [dbo].[usp_Precios_Update]
+    @id INT,
+    @nombre VARCHAR(100),
+    @pres VARCHAR(100),
+    @cant DECIMAL(10, 4),
+    @precio DECIMAL(10, 4),
+    @id_unidad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE [dbo].[dim_producto_precios] 
+    SET Nombre = @nombre, presentacion = @pres, cantidad_base = @cant, precio_venta = @precio, id_unidad = @id_unidad
+    WHERE id_precio = @id;
+END
+GO
+
+
 -- 2. Insert Sale (Header and Details)
 -- IMPLEMENTATION: Decouples Financial Transaction from Inventory Movement
 -- UPDATED 2026-05-07: Transitioned to UNIT-only stock management. uses 'unidades_vendidas' for inventory deduction.
+-- UPDATED 2026-05-10: Added ISNULL for costo_unitario to prevent NULL insert errors
 CREATE OR ALTER PROCEDURE [dbo].[usp_Ventas_Insert]
     @id_cliente INT,
     @id_almacen INT,
@@ -76,7 +117,7 @@ BEGIN
             TRY_CAST(JSON_VALUE(value, '$.precio_unitario') AS DECIMAL(10,4)), 
             TRY_CAST(JSON_VALUE(value, '$.descuento') AS DECIMAL(10,4)), 
             TRY_CAST(JSON_VALUE(value, '$.subtotal') AS DECIMAL(12,2)), 
-            TRY_CAST(JSON_VALUE(value, '$.costo_unitario') AS DECIMAL(10,4)),
+            ISNULL(TRY_CAST(JSON_VALUE(value, '$.costo_unitario') AS DECIMAL(10,4)), 0),
             TRY_CAST(JSON_VALUE(value, '$.unidades_vendidas') AS DECIMAL(10,4))
         FROM OPENJSON(@detalles_json);
 

@@ -52,6 +52,7 @@ interface ProductPrice {
   presentacion: string;
   cantidad_base: number;
   precio_venta: number;
+  id_unidad?: number;
 }
 
 export default function Products() {
@@ -119,9 +120,12 @@ export default function Products() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productData),
       });
- 
+  
       if (res.ok) {
         await fetchInitialData();
+        if (editingProduct) {
+            await fetchPrices(editingProduct.id_producto);
+        }
         setIsModalOpen(false);
       } else {
         const errData = await res.json();
@@ -258,8 +262,9 @@ function ProductModal({ product, units, classes, prices, onClose, onSave, onPric
   const [localPrices, setLocalPrices] = useState([...(prices || [])]);
 
   const addPriceRow = () => {
-    setLocalPrices([...localPrices, { id_precio: 0, presentacion: '', cantidad_base: 1, precio_venta: 0 }]);
+    setLocalPrices([...localPrices, { id_precio: 0, presentacion: '', cantidad_base: 1, precio_venta: 0, id_unidad: '' }]);
   };
+
 
   const updatePriceRow = (index: number, field: string, value: any) => {
     const newPrices = [...localPrices];
@@ -431,11 +436,20 @@ function ProductModal({ product, units, classes, prices, onClose, onSave, onPric
                   {localPrices.map((price, idx) => (
                     <tr key={idx} className="group">
                       <td className="py-2 px-2">
-                        <input
-                          className="w-full bg-transparent border-b border-text-main/10 text-base outline-none focus:border-text-main transition-all"
-                          value={price.presentacion}
-                          onChange={(e) => updatePriceRow(idx, 'presentacion', e.target.value)}
-                          placeholder="Ej: Bolsa 25 und"
+                        <FormSelect
+                          options={units}
+                          value={price.id_unidad}
+                          onChange={(v) => {
+                            const unitId = parseInt(v);
+                            const unit = units.find(u => u.id_unidad === unitId);
+                            const newPrices = [...localPrices];
+                            newPrices[idx] = { 
+                              ...newPrices[idx], 
+                              id_unidad: unitId, 
+                              presentacion: unit ? unit.nombre : '' 
+                            };
+                            setLocalPrices(newPrices);
+                          }}
                         />
                       </td>
                       <td className="py-2 px-2">

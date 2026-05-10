@@ -283,37 +283,78 @@ GO
 -- SECCIÓN: PRECIOS DEL PRODUCTO
 -- -----------------------------------------------------------------------------------
 
--- Descripción: Obtener precios de un producto específico
-CREATE PROCEDURE usp_Precios_GetByProd
+-- Descripción: Obtener precios de un producto específico (Actualizado 2026-05-10: LEFT JOIN para evitar pérdida de presentaciones sin unidad)
+CREATE OR ALTER PROCEDURE usp_Precios_GetByProd
     @id_prod INT
 AS
 BEGIN
-    SELECT * FROM dim_producto_precios WHERE id_producto = @id_prod;
+    SELECT p.* FROM dim_producto_precios p WHERE id_producto = @id_prod;
+END;
+GO
+
+-- Descripción: Insertar nueva presentación de precio (Actualizado 2026-05-10: Soporte para id_unidad)
+CREATE OR ALTER PROCEDURE usp_Precios_Insert
+    @id_prod INT,
+    @nombre VARCHAR(100),
+    @pres VARCHAR(100),
+    @cant DECIMAL(10, 4),
+    @precio DECIMAL(10, 4),
+    @id_unidad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @new_id INT;
+    SELECT @new_id = ISNULL(MAX(id_precio), 0) + 1 FROM dim_producto_precios;
+
+    INSERT INTO dim_producto_precios (id_precio, id_producto, Nombre, presentacion, cantidad_base, precio_venta, id_unidad) 
+    VALUES (@new_id, @id_prod, @nombre, @pres, @cant, @precio, @id_unidad);
+END;
+GO
+
+-- Descripción: Actualizar presentación de precio (Actualizado 2026-05-10: Soporte para id_unidad)
+CREATE OR ALTER PROCEDURE usp_Precios_Update
+    @id INT,
+    @nombre VARCHAR(100),
+    @pres VARCHAR(100),
+    @cant DECIMAL(10, 4),
+    @precio DECIMAL(10, 4),
+    @id_unidad INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE dim_producto_precios SET Nombre = @nombre, presentacion = @pres, cantidad_base = @cant, precio_venta = @precio, id_unidad = @id_unidad
+    WHERE id_precio = @id;
 END;
 GO
 
 -- Descripción: Insertar nueva presentación de precio
-CREATE PROCEDURE usp_Precios_Insert
+CREATE OR ALTER PROCEDURE usp_Precios_Insert
     @id_prod INT,
+    @nombre VARCHAR(100),
     @pres VARCHAR(100),
     @cant DECIMAL(10, 4),
     @precio DECIMAL(10, 4)
 AS
 BEGIN
-    INSERT INTO dim_producto_precios (id_producto, presentacion, cantidad_base, precio_venta) 
-    VALUES (@id_prod, @pres, @cant, @precio);
+    SET NOCOUNT ON;
+    DECLARE @new_id INT;
+    SELECT @new_id = ISNULL(MAX(id_precio), 0) + 1 FROM dim_producto_precios;
+
+    INSERT INTO dim_producto_precios (id_precio, id_producto, Nombre, presentacion, cantidad_base, precio_venta) 
+    VALUES (@new_id, @id_prod, @nombre, @pres, @cant, @precio);
 END;
 GO
 
 -- Descripción: Actualizar presentación de precio
-CREATE PROCEDURE usp_Precios_Update
+CREATE OR ALTER PROCEDURE usp_Precios_Update
     @id INT,
+    @nombre VARCHAR(100),
     @pres VARCHAR(100),
     @cant DECIMAL(10, 4),
     @precio DECIMAL(10, 4)
 AS
 BEGIN
-    UPDATE dim_producto_precios SET presentacion = @pres, cantidad_base = @cant, precio_venta = @precio 
+    UPDATE dim_producto_precios SET Nombre = @nombre, presentacion = @pres, cantidad_base = @cant, precio_venta = @precio 
     WHERE id_precio = @id;
 END;
 GO

@@ -337,9 +337,11 @@ app.post('/api/productos', async (req, res) => {
             for (const pr of p.prices) {
                 await pool.request()
                     .input('id_prod', sql.Int, id_producto)
+                    .input('nombre', sql.VarChar, p.nombre)
                     .input('pres', sql.VarChar, pr.presentacion)
                     .input('cant', sql.Decimal(10, 4), pr.cantidad_base)
                     .input('precio', sql.Decimal(10, 4), pr.precio_venta)
+                    .input('id_unidad', sql.Int, pr.id_unidad || null)
                     .execute('usp_Precios_Insert');
             }
         }
@@ -399,17 +401,21 @@ app.put('/api/productos/:id', async (req, res) => {
                     // Actualizar
                     await pool.request()
                         .input('id', sql.Int, pr.id_precio)
+                        .input('nombre', sql.VarChar, p.nombre)
                         .input('pres', sql.VarChar, pr.presentacion)
                         .input('cant', sql.Decimal(10, 4), pr.cantidad_base)
                         .input('precio', sql.Decimal(10, 4), pr.precio_venta)
+                        .input('id_unidad', sql.Int, pr.id_unidad || null)
                         .execute('usp_Precios_Update');
                 } else {
                     // Insertar
                     await pool.request()
                         .input('id_prod', sql.Int, id)
+                        .input('nombre', sql.VarChar, p.nombre)
                         .input('pres', sql.VarChar, pr.presentacion)
                         .input('cant', sql.Decimal(10, 4), pr.cantidad_base)
                         .input('precio', sql.Decimal(10, 4), pr.precio_venta)
+                        .input('id_unidad', sql.Int, pr.id_unidad || null)
                         .execute('usp_Precios_Insert');
                 }
             }
