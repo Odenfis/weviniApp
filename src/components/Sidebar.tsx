@@ -27,10 +27,10 @@ export default function Sidebar({ currentView, setView, onLogout }: SidebarProps
     { id: 'inventory', label: 'Inventario', icon: Package },
     { id: 'customers', label: 'Clientes', icon: Users },
     { id: 'suppliers', label: 'Proveedores', icon: Users },
-    { id: 'pos', label: 'Punto de Venta', icon: ShoppingCart },
-    { id: 'catalog', label: 'Catálogo', icon: List },
-    { id: 'settings', label: 'Configuración', icon: Settings },
-  ];
+        { id: 'pos', label: 'Punto de Venta', icon: ShoppingCart },
+        { id: 'catalog', label: 'Catálogo', icon: List },
+        { id: 'configuration', label: 'Configuración', icon: Settings },
+      ];
 
   return (
     <nav className="fixed left-0 top-0 h-screen w-64 border-r border-text-main/10 bg-bg-main flex flex-col py-12 z-50">

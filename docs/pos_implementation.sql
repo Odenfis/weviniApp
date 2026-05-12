@@ -99,7 +99,7 @@ BEGIN
         )
         VALUES (
             @id_cliente, @id_almacen, @numero_doc, @tipo_doc, @tipo_venta, 
-            GETDATE(), @subtotal, @descuento, @igv, @total, 
+            GETUTCDATE(), @subtotal, @descuento, @igv, @total, 
             @monto_pagado, @saldo, @estado, @observaciones
         );
         
@@ -212,4 +212,23 @@ BEGIN
     ORDER BY v.fecha_venta DESC;
 END
 GO
+
+-- 7. POS Configuration
+-- Table to store global POS settings for automatic selection
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[pos_config]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE [dbo].[pos_config] (
+        id INT PRIMARY KEY CHECK (id = 1), -- Ensure only one row exists
+        id_cliente INT NULL,
+        id_almacen INT NULL,
+        automatico BIT DEFAULT 0,
+        ultima_actualizacion DATETIME DEFAULT GETUTCDATE()
+    );
+
+    -- Initial configuration row
+    INSERT INTO [dbo].[pos_config] (id, id_cliente, id_almacen, automatico)
+    VALUES (1, NULL, NULL, 0);
+END
+GO
+
 

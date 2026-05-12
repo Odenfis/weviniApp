@@ -59,23 +59,27 @@ export default function POS() {
       }
  
       // 2. Carga de Almacenes
+      let loadedWarehouses = [];
       try {
         const wareRes = await apiFetch('/api/almacenes').then(res => {
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
           return res.json();
         });
-        setWarehouses(Array.isArray(wareRes) ? wareRes : []);
+        loadedWarehouses = Array.isArray(wareRes) ? wareRes : [];
+        setWarehouses(loadedWarehouses);
       } catch (err) {
         console.error('❌ Error cargando Almacenes:', err);
       }
  
       // 3. Carga de Clientes
+      let loadedCustomers = [];
       try {
         const custRes = await apiFetch('/api/clientes?all=true').then(res => {
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
           return res.json();
         });
-        setCustomers(Array.isArray(custRes) ? custRes : []);
+        loadedCustomers = Array.isArray(custRes) ? custRes : [];
+        setCustomers(loadedCustomers);
       } catch (err) {
         console.error('❌ Error cargando Clientes:', err);
       }
@@ -101,8 +105,22 @@ export default function POS() {
        } catch (err) {
          console.error('❌ Error cargando Formas de Pago:', err);
        }
- 
-     } catch (err) {
+
+       // 6. Carga de Configuración POS Automático
+       try {
+         const confRes = await apiFetch('/api/config/pos').then(res => res.json());
+         if (confRes && confRes.automatico) {
+           const defaultCustomer = loadedCustomers.find(c => c.id_cliente === confRes.id_cliente);
+           const defaultWarehouse = loadedWarehouses.find(w => w.id_almacen === confRes.id_almacen);
+           
+           if (defaultCustomer) setSelectedCustomer(defaultCustomer);
+           if (defaultWarehouse) setSelectedWarehouse(defaultWarehouse);
+         }
+       } catch (err) {
+         console.error('❌ Error cargando Configuración POS:', err);
+       }
+  
+    } catch (err) {
       console.error('❌ Error crítico en loadInitialData:', err);
     } finally {
       setLoading(false);

@@ -8,6 +8,7 @@ import Customers from './views/Customers';
 import Suppliers from './views/Suppliers';
 import POS from './views/POS';
 import Catalog from './views/Catalog';
+import Configuration from './views/Configuration';
 import Login from './views/Login';
 import LicenseLock from './components/LicenseLock';
 
@@ -58,6 +59,7 @@ export default function App() {
       case 'suppliers': return <Suppliers />;
       case 'pos': return <POS />;
       case 'catalog': return <Catalog />;
+      case 'configuration': return <Configuration />;
       default: return <Dashboard />;
     }
   };

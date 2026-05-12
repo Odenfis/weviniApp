@@ -236,6 +236,40 @@ This file serves as the official record of the project's evolution, technical de
     - Implemented real-time validation to ensure the sum of distributed amounts matches the total transaction amount.
     - Updated the transaction logic to correctly record the breakdown of multiple payment methods in the database.
 
+### Phase 26: Product Pricing & POS Visibility Optimization
+- **Unit Integration in Prices:**
+    - Linked `dim_producto_precios` with `dim_unidades_medida` via `id_unidad`.
+    - Updated Frontend `ProductModal` to use a selector for units instead of manual text entry.
+    - Modified Backend and SPs (`usp_Precios_Insert`, `usp_Precios_Update`) to handle and persist `id_unidad`.
+- **POS Visibility Fix:**
+    - Refactored `usp_Precios_GetByProd` to use `LEFT JOIN` with units, ensuring that price presentations are visible in the POS even if they lack an assigned unit.
+- **Database Robustness:**
+    - Implemented manual ID generation in `usp_Precios_Insert` to handle non-IDENTITY primary keys.
+    - Added `ISNULL` handling for `costo_unitario` in `usp_Ventas_Insert` to prevent transaction failures when cost data is missing.
+- **UX Improvements:**
+    - Fixed state race conditions in the product edit modal for smoother unit selection.
+    - Implemented automatic price refresh after saving a product to ensure immediate UI synchronization.
+
+### Phase 27: Transactional Integrity & Temporal Synchronization
+- **Timezone Synchronization:**
+    - Migrated sale recording from `GETDATE()` to `GETUTCDATE()` in `usp_Ventas_Insert`.
+    - Resolved "double-adjustment" issue where both server and browser were subtracting time offsets.
+    - Ensured that sales are stored in Universal Time (UTC), allowing the frontend to automatically display the correct local time based on the user's device.
+- **Verification:** Validated that sales recorded in the database now align perfectly with the local time displayed in the POS Dashboard.
+
+### Phase 28: POS Automatic Selection & Global Configuration
+- **Configuration Module Implementation:**
+    - Created a dedicated `Configuration` view to manage global system settings.
+    - Implemented a persistent configuration table `pos_config` in the database.
+    - Developed backend endpoints (`GET` and `PUT /api/config/pos`) to handle global settings.
+- **POS Automatic Logic:**
+    - Implemented a "POS Automático" feature allowing administrators to define a default Customer and Warehouse.
+    - Developed an automatic selection mechanism in `POS.tsx` that assigns pre-defined records upon initialization if the feature is active.
+    - Integrated safety checks to ensure the POS continues to function normally if pre-configured records are deleted from the master data.
+- **Navigation Integration:**
+    - Added a "Configuración" entry to the Sidebar and integrated the view into the main application routing.
+
+
 ## 📅 Next Steps (Roadmap)
 - [ ] Implement Product Categories and Lines management.
 - [ ] Build the Dashboard with key metrics (Revenue, Volume, etc.).

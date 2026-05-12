@@ -605,7 +605,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 // --- NEXT CODE GENERATOR ---
-
+ 
 async function getNextCode(tableName: string, columnName: string) {
     try {
         const pool = await poolPromise;
@@ -615,14 +615,14 @@ async function getNextCode(tableName: string, columnName: string) {
             .execute('usp_Utils_GetNextCode');
         
         const lastCode = result.recordset[0]?.NextCode;
-
+        
         if (!lastCode) return "1";
-
+        
         // Mantenemos la lógica de incremento en JS para manejar prefijos complejos
         if (/^\d+$/.test(lastCode)) {
             return (parseInt(lastCode) + 1).toString();
         }
-
+        
         const match = lastCode.match(/^([a-zA-Z-]+)(\d+)$/);
         if (match) {
             const prefix = match[1];
@@ -630,7 +630,7 @@ async function getNextCode(tableName: string, columnName: string) {
             const nextNumber = parseInt(numberPart) + 1;
             return `${prefix}${nextNumber.toString().padStart(numberPart.length, '0')}`;
         }
-
+        
         return (parseInt(lastCode.replace(/\D/g, '')) + 1).toString();
     } catch (err) {
         console.error('Error generating next code:', err);
@@ -638,7 +638,35 @@ async function getNextCode(tableName: string, columnName: string) {
     }
 }
 
+// --- CONFIGURATION ---
+
+app.get('/api/config/pos', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query('SELECT id_cliente, id_almacen, automatico FROM pos_config WHERE id = 1');
+        res.json(result.recordset[0] || { id_cliente: null, id_almacen: null, automatico: 0 });
+    } catch (err) {
+        res.status(500).json({ message: 'Error al obtener configuración del POS', detail: err.message });
+    }
+});
+
+app.put('/api/config/pos', async (req, res) => {
+    const { id_cliente, id_almacen, automatico } = req.body;
+    try {
+        const pool = await poolPromise;
+        await pool.request()
+            .input('id_cliente', sql.Int, id_cliente)
+            .input('id_almacen', sql.Int, id_almacen)
+            .input('automatico', sql.Bit, automatico)
+            .query('UPDATE pos_config SET id_cliente = @id_cliente, id_almacen = @id_almacen, automatico = @automatico, ultima_actualizacion = GETUTCDATE() WHERE id = 1');
+        res.json({ message: 'Configuración del POS actualizada exitosamente' });
+    } catch (err) {
+        res.status(500).json({ message: 'Error al actualizar configuración del POS', detail: err.message });
+    }
+});
+
 app.get('/api/clientes/next-code', async (req, res) => {
+
     try {
         const nextCode = await getNextCode('dim_clientes', 'codigo');
         res.json({ nextCode });
