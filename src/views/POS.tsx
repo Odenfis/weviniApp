@@ -29,6 +29,7 @@ export default function POS() {
   const [cart, setCart] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [selectedWarehouse, setSelectedWarehouse] = useState<any>(null);
+  const [posConfig, setPosConfig] = useState<any>(null);
   const [docType, setDocType] = useState(1); // 1: Boleta, 2: Factura
   const [saleType, setSaleType] = useState(1); // 1: Contado, 2: Crédito
   const [observations, setObservations] = useState('');
@@ -107,16 +108,17 @@ export default function POS() {
        }
 
        // 6. Carga de Configuración POS Automático
-       try {
-         const confRes = await apiFetch('/api/config/pos').then(res => res.json());
-         if (confRes && confRes.automatico) {
-           const defaultCustomer = loadedCustomers.find(c => c.id_cliente === confRes.id_cliente);
-           const defaultWarehouse = loadedWarehouses.find(w => w.id_almacen === confRes.id_almacen);
-           
-           if (defaultCustomer) setSelectedCustomer(defaultCustomer);
-           if (defaultWarehouse) setSelectedWarehouse(defaultWarehouse);
-         }
-       } catch (err) {
+        try {
+          const confRes = await apiFetch('/api/config/pos').then(res => res.json());
+          setPosConfig(confRes);
+          if (confRes && confRes.automatico) {
+            const defaultCustomer = loadedCustomers.find(c => c.id_cliente === confRes.id_cliente);
+            const defaultWarehouse = loadedWarehouses.find(w => w.id_almacen === confRes.id_almacen);
+            
+            if (defaultCustomer) setSelectedCustomer(defaultCustomer);
+            if (defaultWarehouse) setSelectedWarehouse(defaultWarehouse);
+          }
+        } catch (err) {
          console.error('❌ Error cargando Configuración POS:', err);
        }
   
@@ -290,23 +292,26 @@ export default function POS() {
       });
 
       const isPaidMethod = [1, 2, 3, 5].includes(saleType);
-      const saleData = {
-        id_cliente: selectedCustomer.id_cliente,
-        id_almacen: selectedWarehouse.id_almacen,
-        numero_doc: nextDoc,
-        tipo_doc: docType,
-        tipo_venta: saleType,
-        subtotal: subtotal,
-        descuento: 0,
-        igv: igv,
-        total: total,
-        monto_pagado: isPaidMethod ? total : 0,
-        saldo: isPaidMethod ? 0 : total,
-        estado: isPaidMethod ? 'PAGADO' : 'PENDIENTE',
-        observaciones: observations,
-        detalles: saleDetails,
-        payment_details: paymentDetails || null
-      };
+       const saleData = {
+         id_cliente: selectedCustomer.id_cliente,
+         id_almacen: selectedWarehouse.id_almacen,
+         numero_doc: nextDoc,
+         tipo_doc: docType,
+         tipo_venta: saleType,
+         subtotal: subtotal,
+         descuento: 0,
+         igv: igv,
+         total: total,
+         monto_pagado: isPaidMethod ? total : 0,
+         saldo: isPaidMethod ? 0 : total,
+         estado: isPaidMethod ? 'PAGADO' : 'PENDIENTE',
+         observaciones: observations,
+         detalles: saleDetails,
+         pagos: paymentDetails ? [
+           { forma_pago: 1, monto: parseFloat(paymentDetails.contado) || 0 },
+           { forma_pago: 2, monto: parseFloat(paymentDetails.yape) || 0 }
+         ].filter(p => p.monto > 0) : null
+       };
 
       const res = await apiFetch('/api/ventas', {
         method: 'POST',
@@ -314,14 +319,21 @@ export default function POS() {
         body: JSON.stringify(saleData)
       });
 
-      if (res.ok) {
-        alert('Venta realizada correctamente!');
-        setCart([]);
-        setSelectedCustomer(null);
-        setSelectedWarehouse(null);
-        setObservations('');
-        setShowMixedPaymentModal(false);
-      } else {
+       if (res.ok) {
+         alert('Venta realizada correctamente!');
+         setCart([]);
+         
+         if (posConfig?.automatico) {
+           setSelectedCustomer(customers.find(c => c.id_cliente === posConfig.id_cliente));
+           setSelectedWarehouse(warehouses.find(w => w.id_almacen === posConfig.id_almacen));
+         } else {
+           setSelectedCustomer(null);
+           setSelectedWarehouse(null);
+         }
+         
+         setObservations('');
+         setShowMixedPaymentModal(false);
+       } else {
         const err = await res.json();
         alert(`Error: ${err.message}\n\nDetail: ${err.detail || 'N/A'}\nSQL Error: ${err.sqlError || 'N/A'}`);
       }
@@ -617,7 +629,10 @@ export default function POS() {
                   <div className="flex justify-between items-end">
                     <label className="text-[9px] font-black uppercase tracking-widest text-text-main block mb-1">Monto Contado</label>
                     <button 
-                      onClick={() => setMixedPayment({ contado: total / 2, yape: total / 2 })}
+                      onClick={() => {
+                        const half = Math.round((total / 2) * 100) / 100;
+                        setMixedPayment({ contado: half, yape: Math.round((total - half) * 100) / 100 });
+                      }}
                       className="text-[8px] font-bold uppercase text-primary hover:underline mb-1"
                     >
                       Dividir 50/50
@@ -630,13 +645,13 @@ export default function POS() {
                       inputMode="decimal"
                       className="w-full p-3 text-lg font-bold border border-text-main/10 rounded-xl bg-transparent focus:outline-none focus:border-primary text-text-main"
                       value={mixedPayment.contado === 0 ? '' : mixedPayment.contado}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        setMixedPayment({ 
-                          contado: val, 
-                          yape: Math.max(0, total - val) 
-                        });
-                      }}
+                       onChange={(e) => {
+                         const val = parseFloat(e.target.value) || 0;
+                         setMixedPayment({ 
+                           contado: val, 
+                           yape: Math.round(Math.max(0, total - val) * 100) / 100 
+                         });
+                       }}
                       placeholder="0.00"
                     />
                   </div>
@@ -648,13 +663,13 @@ export default function POS() {
                       inputMode="decimal"
                       className="w-full p-3 text-lg font-bold border border-text-main/10 rounded-xl bg-transparent focus:outline-none focus:border-primary text-text-main"
                       value={mixedPayment.yape === 0 ? '' : mixedPayment.yape}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        setMixedPayment({ 
-                          yape: val, 
-                          contado: Math.max(0, total - val) 
-                        });
-                      }}
+                       onChange={(e) => {
+                         const val = parseFloat(e.target.value) || 0;
+                         setMixedPayment({ 
+                           yape: val, 
+                           contado: Math.round(Math.max(0, total - val) * 100) / 100 
+                         });
+                       }}
                       placeholder="0.00"
                     />
                   </div>
@@ -669,19 +684,19 @@ export default function POS() {
                     <span>Total a Pagar:</span>
                     <span>S/ {total.toFixed(2)}</span>
                   </div>
-                  <div className={cn(
-                    "text-center text-[10px] font-black uppercase tracking-widest p-1 rounded-lg",
-                    (Number(mixedPayment.contado) + Number(mixedPayment.yape) === total) ? "bg-green-500/20 text-green-500" : "bg-error-500/20 text-error"
-                  )}>
-                    {(Number(mixedPayment.contado) + Number(mixedPayment.yape) === total) ? "✅ Monto Correcto" : `❌ Diferencia: S/ ${(total - (Number(mixedPayment.contado) + Number(mixedPayment.yape))).toFixed(2)}`}
-                  </div>
+                   <div className={cn(
+                     "text-center text-[10px] font-black uppercase tracking-widest p-1 rounded-lg",
+                     Math.abs((Number(mixedPayment.contado) + Number(mixedPayment.yape)) - total) < 0.01 ? "bg-green-500/20 text-green-500" : "bg-error-500/20 text-error"
+                   )}>
+                     {Math.abs((Number(mixedPayment.contado) + Number(mixedPayment.yape)) - total) < 0.01 ? "✅ Monto Correcto" : `❌ Diferencia: S/ ${(total - (Number(mixedPayment.contado) + Number(mixedPayment.yape))).toFixed(2)}`}
+                   </div>
                 </div>
 
-                <button
-                  onClick={() => executeSale(mixedPayment)}
-                  disabled={(Number(mixedPayment.contado) + Number(mixedPayment.yape) !== total)}
-                  className="w-full py-4 bg-primary text-bg-main rounded-full text-[10px] font-black uppercase tracking-[0.4em] hover:opacity-90 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+                 <button
+                   onClick={() => executeSale(mixedPayment)}
+                   disabled={Math.abs((Number(mixedPayment.contado) + Number(mixedPayment.yape)) - total) >= 0.01}
+                   className="w-full py-4 bg-primary text-bg-main rounded-full text-[10px] font-black uppercase tracking-[0.4em] hover:opacity-90 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
                   Confirmar Pago
                 </button>
               </div>

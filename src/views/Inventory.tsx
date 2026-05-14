@@ -224,13 +224,18 @@ export default function Inventory() {
 
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-tighter opacity-50">Cantidad a Ajustar</label>
-                <input 
-                  type="number" 
-                  value={adjustmentValue}
-                  onChange={(e) => setAdjustmentValue(e.target.value)}
-                  className="w-full px-4 py-3 bg-surface border border-text-main/10 rounded-lg text-xl font-bold focus:border-primary outline-none transition-all"
-                  autoFocus
-                />
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={adjustmentValue}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value.startsWith('-')) return;
+                      setAdjustmentValue(value);
+                    }}
+                    className="w-full px-4 py-3 bg-surface border border-text-main/10 rounded-lg text-xl font-bold focus:border-primary outline-none transition-all"
+                    autoFocus
+                  />
               </div>
             </div>
 

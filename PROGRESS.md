@@ -270,7 +270,72 @@ This file serves as the official record of the project's evolution, technical de
     - Added a "Configuración" entry to the Sidebar and integrated the view into the main application routing.
 
 
+### Phase 29: POS Precision & Post-Sale UX
+- **Floating Point Precision Fix:** 
+    - Resolved IEEE 754 precision issues in "Pago Mixto" modal using strict 2-decimal rounding (`Math.round(val * 100) / 100`).
+    - Implemented a tolerance-based validation (`< 0.01`) for total amount verification to prevent UI blocks due to infinitesimal differences.
+- **Automatic State Persistence:**
+    - Refactored post-sale reset logic to maintain "POS Automático" settings.
+    - Integrated `posConfig` state to automatically restore default Customer and Warehouse upon sale completion if the automatic mode is enabled.
+
+### Phase 30: Advanced Financial Tracking & Mixed Payment Integrity
+- **Financial Traceability Implementation:**
+    - Integrated a new tracking system using the `fact_movimientos_caja` table to record every financial movement resulting from a sale.
+    - Implemented a robust "Iterative Processing" logic in `usp_Ventas_Insert` to treat mixed payments as a sequence of independent financial events.
+- **Cash & Bank Balance Synchronization:**
+    - Automated real-time balance updates in `dim_cajas_bancos` for every sale.
+    - Defined strict mapping for payment methods:
+        - **Contado** $\rightarrow$ `id_caja = 1` (Caja Principal), `categoria = 1`.
+        - **Yape/Transferencia** $\rightarrow$ `id_caja = 2` (Banco BCP), `categoria = 3`.
+- **Full-Stack Integration & Bug Squashing:**
+    - **Frontend**: Updated `POS.tsx` to transform mixed payment state into a JSON array format expected by the database.
+    - **Backend**: Refactored `server/index.ts` to explicitly pass the `pagos_json` parameter to the Stored Procedure.
+    - **Database**: Implemented a "Fallback" mechanism in `usp_Ventas_Insert` to ensure financial records are created even if the payment JSON is missing, preventing silent data loss.
+- **End-to-End Verification:** Validated the complete flow: POS Mixed Payment $\rightarrow$ Node.js API $\rightarrow$ SQL Server $\rightarrow$ Movements Table $\rightarrow$ Bank Balances.
+
+### Phase 31: Dashboard KPI Dynamic Integration
+- **Database Intelligence:**
+    - Developed a specialized Stored Procedure `usp_Dashboard_GetKPIs` to calculate 4 critical operational metrics:
+        - **Ventas Mensuales**: Aggregated revenue for the current month.
+        - **Saldo Caja**: Real-time balance for `id_caja = 1`.
+        - **Saldo Banco**: Real-time balance for `id_caja = 2`.
+        - **Stock Huevo Quiñado**: Current stock level for damaged eggs (`id_producto = 4`).
+- **Backend Infrastructure:**
+    - Implemented `GET /api/dashboard/kpis` endpoint to bridge the operational data to the frontend.
+- **Frontend Modernization:**
+    - Refactored `Dashboard.tsx` to replace static mock data with dynamic API calls.
+    - Integrated professional currency and number formatting for the Peru region (es-PE).
+    - Updated KPI cards with correct titles, units (PEN, UNITS), and semantic icons.
+
+### Phase 32: Reporting System & Export Capabilities
+- **Data Layer:** 
+    - Implemented `usp_Reportes_Ventas` Stored Procedure for dynamic sales data retrieval with date range filtering.
+- **Backend Infrastructure:**
+    - Integrated `exceljs` and `pdfkit` for professional document generation.
+    - Developed endpoints for JSON previsualización, Excel (.xlsx), and PDF (.pdf) exports.
+- **Frontend Implementation:**
+    - Created `SalesReport.tsx` view with advanced date filters, real-time search, and a high-density data table.
+    - Refactored Sidebar navigation to implement a hierarchical dropdown menu, allowing scalable report categorization.
+- **UX/UI Polishing:**
+    - Optimized PDF report layout with precision column widths and corporate branding for professional printing.
+
+### Phase 33: Inventory Input Safety
+- **Negative Value Prevention:**
+    - Implemented input constraints (`min="0"`) and state validation in `Inventory.tsx` to prevent negative numbers during stock adjustments.
+    - Blocked the minus sign (`-`) character in the quantity input to eliminate user errors via keyboard or arrow keys.
+    - Ensured that the adjustment value remains a non-negative integer while the operation state (add/subtract) determines the final stock impact.
+
+### Phase 34: Sales Report UX & Precision Optimization
+- **Advanced Filter Interface:**
+    - Implemented "Quick Presets" (Hoy, Ayer, Este Mes) to allow one-click filtering of common date ranges.
+    - Added a "Limpiar" (Clear) functionality to instantly reset date filters and refresh the data view.
+    - Optimized the filter bar layout to maintain high information density without consuming excessive vertical space.
+- **Temporal Precision Fix:**
+    - Resolved a critical bug where sales on the end-date were omitted due to the time component (00:00:00).
+    - Modified the backend logic to automatically adjust the end-date to `23:59:59.999`, ensuring all transactions for the selected day are captured.
+    - Applied this fix across all report delivery channels: Web View, Excel Export, and PDF Export.
+
 ## 📅 Next Steps (Roadmap)
 - [ ] Implement Product Categories and Lines management.
-- [ ] Build the Dashboard with key metrics (Revenue, Volume, etc.).
+- [x] Build the Dashboard with key metrics (Revenue, Volume, etc.).
 - [ ] Implement Role-Based Access Control (RBAC) for 'Administrador' vs 'Operador'.

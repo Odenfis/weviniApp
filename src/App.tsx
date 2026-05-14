@@ -9,6 +9,7 @@ import Suppliers from './views/Suppliers';
 import POS from './views/POS';
 import Catalog from './views/Catalog';
 import Configuration from './views/Configuration';
+import SalesReport from './views/SalesReport';
 import Login from './views/Login';
 import LicenseLock from './components/LicenseLock';
 
@@ -59,6 +60,7 @@ export default function App() {
       case 'suppliers': return <Suppliers />;
       case 'pos': return <POS />;
       case 'catalog': return <Catalog />;
+      case 'reports-sales': return <SalesReport />;
       case 'configuration': return <Configuration />;
       default: return <Dashboard />;
     }

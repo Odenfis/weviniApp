@@ -5,6 +5,8 @@ import { poolPromise } from './db';
 import sql from 'mssql';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
 
 dotenv.config();
 
@@ -536,6 +538,16 @@ app.get('/api/ventas/recent', async (req, res) => {
     }
 });
 
+app.get('/api/dashboard/kpis', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().execute('usp_Dashboard_GetKPIs');
+        res.json(result.recordset[0]);
+    } catch (err) {
+        res.status(500).json({ message: 'Error al obtener KPIs del dashboard', detail: err.message });
+    }
+});
+
 app.post('/api/ventas', async (req, res) => {
     const v = req.body;
     try {
@@ -681,6 +693,158 @@ app.get('/api/suppliers/next-code', async (req, res) => {
         res.json({ nextCode });
     } catch (err) {
         res.status(500).json({ message: 'Error al generar código de proveedor', detail: err.message });
+    }
+});
+
+// --- REPORTES ---
+
+app.get('/api/reportes/ventas', async (req, res) => {
+    const { fecha_inicio, fecha_fin } = req.query;
+    try {
+        const pool = await poolPromise;
+        
+        // Ajuste de fecha_fin para incluir todo el día (23:59:59.999)
+        const adjustedFin = fecha_fin && typeof fecha_fin === 'string' && fecha_fin.length === 10 
+            ? `${fecha_fin}T23:59:59.999` 
+            : fecha_fin;
+
+        const result = await pool.request()
+            .input('fecha_inicio', sql.DateTime, fecha_inicio || null)
+            .input('fecha_fin', sql.DateTime, adjustedFin || null)
+            .execute('usp_Reportes_Ventas');
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ message: 'Error al obtener reporte de ventas', detail: err.message });
+    }
+});
+
+app.get('/api/reportes/ventas/export/excel', async (req, res) => {
+    const { fecha_inicio, fecha_fin } = req.query;
+    try {
+        const pool = await poolPromise;
+        
+        const adjustedFin = fecha_fin && typeof fecha_fin === 'string' && fecha_fin.length === 10 
+            ? `${fecha_fin}T23:59:59.999` 
+            : fecha_fin;
+
+        const result = await pool.request()
+            .input('fecha_inicio', sql.DateTime, fecha_inicio || null)
+            .input('fecha_fin', sql.DateTime, adjustedFin || null)
+            .execute('usp_Reportes_Ventas');
+        
+        const data = result.recordset;
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Reporte de Ventas');
+
+        worksheet.columns = [
+            { header: 'ID Venta', key: 'id_venta', width: 10 },
+            { header: 'Cliente', key: 'nombre_cliente', width: 30 },
+            { header: 'Tipo de Venta', key: 'tipo_venta_nombre', width: 20 },
+            { header: 'Fecha', key: 'fecha_venta', width: 20 },
+            { header: 'Total', key: 'total', width: 15 },
+            { header: 'Monto Pagado', key: 'monto_pagado', width: 15 },
+            { header: 'Estado', key: 'estado', width: 15 },
+        ];
+
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD3D3D3' }
+        };
+
+        worksheet.addRows(data);
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=reporte_ventas.xlsx');
+
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Excel Export Error:', err);
+        res.status(500).json({ message: 'Error al exportar a Excel', detail: err.message });
+    }
+});
+
+app.get('/api/reportes/ventas/export/pdf', async (req, res) => {
+    const { fecha_inicio, fecha_fin } = req.query;
+    try {
+        const pool = await poolPromise;
+        
+        const adjustedFin = fecha_fin && typeof fecha_fin === 'string' && fecha_fin.length === 10 
+            ? `${fecha_fin}T23:59:59.999` 
+            : fecha_fin;
+
+        const result = await pool.request()
+            .input('fecha_inicio', sql.DateTime, fecha_inicio || null)
+            .input('fecha_fin', sql.DateTime, adjustedFin || null)
+            .execute('usp_Reportes_Ventas');
+        
+        const data = result.recordset;
+        const doc = new PDFDocument({ margin: 30 });
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=reporte_ventas.pdf');
+
+        doc.pipe(res);
+
+        doc.fontSize(20).text('WEVINI APP - REPORTE DE VENTAS', { align: 'center' });
+        doc.fontSize(10).text(`Generado el: ${new Date().toLocaleString()}`, { align: 'center' });
+        doc.moveDown();
+        doc.text(`Periodo: ${fecha_inicio || 'Inicio'} al ${fecha_fin || 'Hoy'}`);
+        doc.moveDown();
+
+        const tableTop = 150;
+        let currentY = tableTop;
+        const colWidths = { id: 40, cliente: 140, tipo: 90, fecha: 80, total: 70, pagado: 70, estado: 70 };
+
+        // Headers
+        doc.fontSize(10).font('Helvetica-Bold');
+        doc.text('ID', 30, currentY, { width: colWidths.id });
+        doc.text('Cliente', 30 + colWidths.id, currentY, { width: colWidths.cliente });
+        doc.text('Tipo', 30 + colWidths.id + colWidths.cliente, currentY, { width: colWidths.tipo });
+        doc.text('Fecha', 30 + colWidths.id + colWidths.cliente + colWidths.tipo, currentY, { width: colWidths.fecha });
+        doc.text('Total', 30 + colWidths.id + colWidths.cliente + colWidths.tipo + colWidths.fecha, currentY, { width: colWidths.total });
+        doc.text('Pagado', 30 + colWidths.id + colWidths.cliente + colWidths.tipo + colWidths.fecha + colWidths.total, currentY, { width: colWidths.pagado });
+        doc.text('Estado', 30 + colWidths.id + colWidths.cliente + colWidths.tipo + colWidths.fecha + colWidths.total + colWidths.pagado, currentY, { width: colWidths.estado });
+        
+        doc.moveTo(30, currentY + 12).lineTo(30 + 560, currentY + 12).stroke();
+        currentY += 20;
+
+        doc.font('Helvetica');
+        data.forEach(row => {
+            if (currentY > 700) {
+                doc.addPage();
+                currentY = 50;
+                doc.font('Helvetica-Bold');
+                doc.text('ID', 30, currentY, { width: colWidths.id });
+                doc.text('Cliente', 30 + colWidths.id, currentY, { width: colWidths.cliente });
+                doc.text('Tipo', 30 + colWidths.id + colWidths.cliente, currentY, { width: colWidths.tipo });
+                doc.text('Fecha', 30 + colWidths.id + colWidths.cliente + colWidths.tipo, currentY, { width: colWidths.fecha });
+                doc.text('Total', 30 + colWidths.id + colWidths.cliente + colWidths.tipo + colWidths.fecha, currentY, { width: colWidths.total });
+                doc.text('Pagado', 30 + colWidths.id + colWidths.cliente + colWidths.tipo + colWidths.fecha + colWidths.total, currentY, { width: colWidths.pagado });
+                doc.text('Estado', 30 + colWidths.id + colWidths.cliente + colWidths.tipo + colWidths.fecha + colWidths.total + colWidths.pagado, currentY, { width: colWidths.estado });
+                doc.moveTo(30, currentY + 12).lineTo(30 + 560, currentY + 12).stroke();
+                currentY += 20;
+                doc.font('Helvetica');
+            }
+
+            doc.text(row.id_venta.toString(), 30, currentY, { width: colWidths.id });
+            doc.text(row.nombre_cliente.substring(0, 20), 30 + colWidths.id, currentY, { width: colWidths.cliente });
+            doc.text(row.tipo_venta_nombre, 30 + colWidths.id + colWidths.cliente, currentY, { width: colWidths.tipo });
+            doc.text(new Date(row.fecha_venta).toLocaleDateString(), 30 + colWidths.id + colWidths.cliente + colWidths.tipo, currentY, { width: colWidths.fecha });
+            doc.text(row.total.toFixed(2), 30 + colWidths.id + colWidths.cliente + colWidths.tipo + colWidths.fecha, currentY, { width: colWidths.total });
+            doc.text(row.monto_pagado.toFixed(2), 30 + colWidths.id + colWidths.cliente + colWidths.tipo + colWidths.fecha + colWidths.total, currentY, { width: colWidths.pagado });
+            doc.text(row.estado, 30 + colWidths.id + colWidths.cliente + colWidths.tipo + colWidths.fecha + colWidths.total + colWidths.pagado, currentY, { width: colWidths.estado });
+            
+            currentY += 20;
+        });
+
+
+        doc.end();
+    } catch (err) {
+        console.error('PDF Export Error:', err);
+        res.status(500).json({ message: 'Error al exportar a PDF', detail: err.message });
     }
 });
 

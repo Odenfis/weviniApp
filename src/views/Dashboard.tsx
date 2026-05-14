@@ -43,21 +43,36 @@ const inventoryData = [
 
 export default function Dashboard() {
   const [recentSales, setRecentSales] = useState<any[]>([]);
+  const [kpis, setKpis] = useState<any>(null);
 
   useEffect(() => {
-    const fetchRecentSales = async () => {
+    const fetchData = async () => {
       try {
-        const res = await apiFetch('/api/ventas/recent');
-        if (res.ok) {
-          const data = await res.json();
-          setRecentSales(data);
+        const [salesRes, kpisRes] = await Promise.all([
+          apiFetch('/api/ventas/recent'),
+          apiFetch('/api/dashboard/kpis')
+        ]);
+
+        if (salesRes.ok) {
+          const salesData = await salesRes.json();
+          setRecentSales(salesData);
+        }
+        if (kpisRes.ok) {
+          const kpisData = await kpisRes.json();
+          setKpis(kpisData);
         }
       } catch (err) {
-        console.error('Error fetching recent sales:', err);
+        console.error('Error fetching dashboard data:', err);
       }
     };
-    fetchRecentSales();
+    fetchData();
   }, []);
+
+  const formatCurrency = (val: number) => 
+    new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
+  
+  const formatNumber = (val: number) => 
+    new Intl.NumberFormat('es-PE').format(val);
 
   return (
     <div className="p-12 space-y-12 animate-in fade-in duration-700 bg-bg-main min-h-full">
@@ -74,34 +89,34 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
         <MetricCard
-          title="Stock Huevo Rosado"
-          value="12,450"
-          unit="PLATES"
-          trend="+4.2% since yesterday"
-          positive
-          icon={Package}
-        />
-        <MetricCard
-          title="Stock Huevo Pardo"
-          value="8,200"
-          unit="PLATES"
-          trend="Inventory stable"
-          neutral
-          icon={Package}
-        />
-        <MetricCard
-          title="Daily Sales"
-          value="S/ 14,850.00"
+          title="Ventas Mensuales"
+          value={kpis ? formatCurrency(kpis.ventas_mensuales) : '---'}
           unit="PEN"
-          trend="+12% vs last tuesday"
+          trend="Current month total"
           positive
           icon={CartIcon}
         />
         <MetricCard
-          title="Egg Breakage"
-          value="145"
+          title="Saldo Caja"
+          value={kpis ? formatCurrency(kpis.saldo_caja) : '---'}
+          unit="PEN"
+          trend="Available in cash"
+          neutral
+          icon={Package}
+        />
+        <MetricCard
+          title="Saldo Banco"
+          value={kpis ? formatCurrency(kpis.saldo_banco) : '---'}
+          unit="PEN"
+          trend="Available in bank"
+          neutral
+          icon={Package}
+        />
+        <MetricCard
+          title="Stock Huevo Quiñado"
+          value={kpis ? formatNumber(kpis.stock_quinado) : '---'}
           unit="UNITS"
-          trend="Above daily threshold"
+          trend="Damaged egg stock"
           negative
           icon={CircleAlert}
           alert
